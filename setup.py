@@ -56,7 +56,8 @@ setup(
     extras_require=extras,
     install_requires=[
         'crypto_oversold @ git+ssh://github.com:vikramaditya91/crypto_oversold.git'
-        'sqlalchemy'
+        'sqlalchemy',
+        'matplotlib'
     ],
     keywords="binance cryptocurrency xarray",
     license="Simplified BSD License",
