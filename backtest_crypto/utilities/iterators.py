@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Union
+import numpy as np
 from crypto_history.stock_market.stock_market_factory import DateTimeOperations
 
 
@@ -21,6 +22,7 @@ class TimeIntervalIterator:
                                                                            end_time,
                                                                            forward_in_time,
                                                                            increasing_range)
+        self.time_intervals = self.get_time_intervals_list()
 
     @staticmethod
     def init_interval(interval):
@@ -54,7 +56,58 @@ class TimeIntervalIterator:
             else:
                 self.current_end -= self.interval
 
-    def get_time_intervals(self):
+    def _get_time_intervals(self):
         while self.current_end >= self.current_start:
             yield self.current_start, self.current_end
             self._skip_to_next()
+
+    def get_time_intervals_list(self):
+        return list(self._get_time_intervals())
+
+    def get_time_interval_xarray_coordinates(self):
+        time_intervals = self.time_intervals
+        return list(map(lambda x: f"{int(x[0].timestamp()*1000)}_{int(x[1].timestamp()*1000)}", time_intervals))
+
+
+class ManualSourceIterators:
+    def high_cutoff(self):
+        return [0.7]
+
+    def low_cutoff(self):
+        return [0]
+
+
+class ManualSuccessIterators:
+    def percentage_increase(self):
+        return np.arange(0.5, 5, 0.5)
+
+    def percentge_reduction(self):
+        return np.arange(0, -2, -0.1)
+
+    def days_to_run(self):
+        return [timedelta(days=20)]
+
+
+class DataVars:
+    def data_vars(self):
+        return [
+            # Number of oversold coins that were actually bought out of all Binance coins
+            "percentage_of_coins_bought",
+
+            # Number of oversold coins that actually hit the target
+            "number_of_bought_coins_hit_target",
+
+            # Number of oversold coins that did not hit the target
+            "number_of_bought_coins_did_not_hit_target",
+
+            # Percentage of bought coins that hit the target
+            "percentage_of_bought_coins_hit_target",
+
+            # At the end of 20-days, value of bought coins if they were not sold
+            "end_of_run_value_of_bought_coins_if_not_sold",
+
+            # At the end of 20-days, value of bought coins if they were sold when the target hit
+            "end_of_run_value_of_bought_coins_if_sold_on_target",
+            ]
+
+

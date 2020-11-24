@@ -16,7 +16,7 @@ from crypto_history.utilities.general_utilities import check_for_write_access
 logger = logging.getLogger(__package__)
 
 
-class AbstractObtainCoinHistoryCreator(ABC):
+class AbstractRawHistoryObtainCreator(ABC):
     """Abstract disk-writer creator"""
     @abstractmethod
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
@@ -31,14 +31,14 @@ class AbstractObtainCoinHistoryCreator(ABC):
 
 
 @register_factory(section="access_xarray", identifier="web_request")
-class WebRequestCoinHistoryCreator(AbstractObtainCoinHistoryCreator):
+class WebRequestCoinHistoryCreator(AbstractRawHistoryObtainCreator):
     """JSON creator"""
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         return ConcreteWebRequestCoinHistoryAccess(*args, **kwargs)
 
 
 @register_factory(section="access_xarray", identifier="sqlite")
-class SQLiteCoinHistoryCreator(AbstractObtainCoinHistoryCreator):
+class SQLiteCoinHistoryCreator(AbstractRawHistoryObtainCreator):
     """SQLite creator"""
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         return ConcreteSQLiteCoinHistoryAccess(*args, **kwargs)
@@ -145,20 +145,12 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         return self.substitute_weight_value(da)
 
 
-def yield_split_coin_history(creator: AbstractObtainCoinHistoryCreator,
-                             start_date,
-                             end_date,
-                             interval,
+def yield_split_coin_history(creator: AbstractRawHistoryObtainCreator,
+                             time_interval_iterator: TimeIntervalIterator,
                              candle,
                              ohlcv_field,
                              *args, **kwargs):
-    time_intervals_iterator = TimeIntervalIterator(start_date,
-                                                   end_date,
-                                                   interval,
-                                                   forward_in_time=False,
-                                                   increasing_range=False)
-
-    for current_start, current_end in time_intervals_iterator.get_time_intervals():
+    for current_start, current_end in time_interval_iterator.time_intervals:
         yield creator.get_split_coin_history(current_start,
                                              current_end,
                                              ohlcv_field,
