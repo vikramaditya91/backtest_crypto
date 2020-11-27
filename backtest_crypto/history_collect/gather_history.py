@@ -26,8 +26,14 @@ class AbstractRawHistoryObtainCreator(ABC):
     def get_split_coin_history(self,
                                *args,
                                **kwargs):
+        product = self.factory_method()
+        return product.get_split_xarray(*args, **kwargs)
+
+    def store_largest_xarray_in_borg(self,
+                                     *args,
+                                     **kwargs):
         product = self.factory_method(*args, **kwargs)
-        return product.get_split_xarray()
+        product.store_largest_da_on_borg(product.get_fresh_xarray())
 
 
 @register_factory(section="access_xarray", identifier="web_request")
@@ -44,17 +50,20 @@ class SQLiteCoinHistoryCreator(AbstractRawHistoryObtainCreator):
         return ConcreteSQLiteCoinHistoryAccess(*args, **kwargs)
 
 
-class ConcreteAbstractCoinHistoryAccess(ABC, Borg):
+class Singleton (type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
     def __init__(self,
-                 current_start,
-                 current_end,
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
-        if not self._shared_state:
-            self.largest_xarray = None
-        self.current_start = current_start
-        self.current_end = current_end
 
     @abstractmethod
     def get_fresh_xarray(self):
@@ -65,28 +74,50 @@ class ConcreteAbstractCoinHistoryAccess(ABC, Borg):
         self.largest_xarray = dataarray
 
     def get_xarray(self):
-        dataarray = self.largest_xarray or self.get_fresh_xarray()
-        self.store_largest_da_on_borg(dataarray)
+        if self.largest_xarray is None:
+            dataarray = self.get_fresh_xarray()
+            self.store_largest_da_on_borg(dataarray)
+        else:
+            dataarray = self.largest_xarray
         return dataarray
 
     def available_ts(self,
-                     timestamp):
-        return (timestamp > self.current_start.timestamp() * 1000) & \
-               (timestamp < self.current_end.timestamp() * 1000)
+                     timestamp,
+                     current_start,
+                     current_end):
+        return (timestamp > current_start.timestamp() * 1000) & \
+               (timestamp < current_end.timestamp() * 1000)
 
     def masked_ts(self,
-                  timestamp):
-        return timestamp > self.current_end.timestamp()*1000
+                  timestamp,
+                  current_end):
+        return timestamp > current_end.timestamp()*1000
 
-    def get_split_xarray(self):
+    def get_split_xarray(self,
+                         current_start,
+                         current_end,
+                         available=False,
+                         masked=False):
         if self.largest_xarray is None:
             dataarray = self.get_fresh_xarray()
+            self.store_largest_da_on_borg(dataarray)
         else:
             dataarray = self.largest_xarray
-        self.store_largest_da_on_borg(dataarray)
 
-        return dataarray.where(self.available_ts(dataarray.timestamp), drop=True), \
-               dataarray.where(self.masked_ts(dataarray.timestamp), drop=True)
+        if available is True:
+            available_da = dataarray.where(self.available_ts(dataarray.timestamp,
+                                                     current_start,
+                                                     current_end), drop=True)
+        else:
+            available_da = None
+
+        if masked is True:
+            masked_da = dataarray.where(self.masked_ts(dataarray.timestamp,
+                                                     current_end), drop=True)
+        else:
+            masked_da = None
+
+        return available_da, masked_da
 
 
 class ConcreteWebRequestCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
@@ -99,8 +130,8 @@ class ConcreteWebRequestCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
 
 class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
     def __init__(self,
-                 current_start,
-                 current_end,
+                 overall_start,
+                 overall_end,
                  olhcv_field,
                  candle,
                  reference_coin,
@@ -108,7 +139,10 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                  mapped_class,
                  table_name
                  ):
-        super().__init__(current_start, current_end)
+        super(ConcreteSQLiteCoinHistoryAccess, self).__init__()
+        self.largest_xarray = None
+        self.overall_end = overall_end
+        self.overall_start = overall_start
         self.reference_coin = reference_coin
         self.candle = candle
         self.file_path = file_path
@@ -145,16 +179,39 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         return self.substitute_weight_value(da)
 
 
+def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
+                         overall_start,
+                         overall_end,
+                         candle,
+                         ohlcv_field,
+                         *args,
+                         **kwargs):
+    return creator.store_largest_xarray_in_borg(ohlcv_field,
+                                                overall_start,
+                                                overall_end,
+                                                candle,
+                                                *args,
+                                                **kwargs)
+
+
 def yield_split_coin_history(creator: AbstractRawHistoryObtainCreator,
                              time_interval_iterator: TimeIntervalIterator,
-                             candle,
-                             ohlcv_field,
-                             *args, **kwargs):
+                             available=True,
+                             masked=True
+                             ):
     for current_start, current_end in time_interval_iterator.time_intervals:
         yield creator.get_split_coin_history(current_start,
                                              current_end,
-                                             ohlcv_field,
-                                             candle,
-                                             *args,
-                                             **kwargs)
+                                             available,
+                                             masked)
 
+
+def get_history_between(creator: AbstractRawHistoryObtainCreator,
+                        start_time,
+                        end_time,
+                        available=True,
+                        masked=True):
+    return creator.get_split_coin_history(start_time,
+                                          end_time,
+                                          available=available,
+                                          masked=masked)

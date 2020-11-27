@@ -8,12 +8,10 @@ logger = logging.getLogger(__name__)
 class Gather:
     def __init__(self,
                  time_interval_iterator,
-                 coin_history_yield,
                  source_iterators,
                  success_iterators,
                  data_vars):
         self.time_interval_iterator = time_interval_iterator
-        self.coin_history_yield = coin_history_yield
         self.success_iterators = success_iterators
         self.source_iterators = source_iterators
         self.data_vars = data_vars
@@ -21,7 +19,7 @@ class Gather:
 
     def get_coords_for_dataset(self):
         coordinates = [(self.time_interval_coordinate,
-                        self.time_interval_iterator.get_time_interval_xarray_coordinates())]
+                        self.time_interval_iterator.get_list_time_intervals_str())]
         for success in self.success_iterators:
             coordinates.append((success.__name__, success()))
         for source in self.source_iterators:
@@ -47,6 +45,3 @@ class Gather:
         empty_ds = self.initialize_dataset()
         for coordinate in self.yield_coordinates_to_fill(empty_ds):
             yield empty_ds.loc[{k: v for k, v in zip(empty_ds.coords, coordinate)}]
-
-    def check_if_successful(self):
-        pass

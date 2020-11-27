@@ -22,7 +22,13 @@ class TimeIntervalIterator:
                                                                            end_time,
                                                                            forward_in_time,
                                                                            increasing_range)
-        self.time_intervals = self.get_time_intervals_list()
+        self._time_intervals = None
+
+    @property
+    def time_intervals(self):
+        if self._time_intervals is None:
+            self._time_intervals = self.get_time_intervals_list()
+        return self._time_intervals
 
     @staticmethod
     def init_interval(interval):
@@ -64,9 +70,13 @@ class TimeIntervalIterator:
     def get_time_intervals_list(self):
         return list(self._get_time_intervals())
 
-    def get_time_interval_xarray_coordinates(self):
+    def get_list_time_intervals_str(self,
+                                    delimiter="_"):
         time_intervals = self.time_intervals
-        return list(map(lambda x: f"{int(x[0].timestamp()*1000)}_{int(x[1].timestamp()*1000)}", time_intervals))
+        return list(map(
+            lambda x: f"{int(x[0].timestamp()*1000)}{delimiter}{int(x[1].timestamp()*1000)}", time_intervals
+            )
+        )
 
 
 class ManualSourceIterators:
