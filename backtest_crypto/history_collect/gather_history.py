@@ -5,6 +5,7 @@ import datetime
 from sqlalchemy.orm import sessionmaker
 import xarray as xr
 import pandas as pd
+import numpy as np
 from typing import Union, List
 from abc import ABC, abstractmethod
 from sqlalchemy import create_engine
@@ -81,18 +82,6 @@ class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
             dataarray = self.largest_xarray
         return dataarray
 
-    def available_ts(self,
-                     timestamp,
-                     current_start,
-                     current_end):
-        return (timestamp > current_start.timestamp() * 1000) & \
-               (timestamp < current_end.timestamp() * 1000)
-
-    def masked_ts(self,
-                  timestamp,
-                  current_end):
-        return timestamp > current_end.timestamp()*1000
-
     def get_split_xarray(self,
                          current_start,
                          current_end,
@@ -104,16 +93,24 @@ class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
         else:
             dataarray = self.largest_xarray
 
+        all_ts = dataarray.timestamp.values.tolist()
         if available is True:
-            available_da = dataarray.where(self.available_ts(dataarray.timestamp,
-                                                     current_start,
-                                                     current_end), drop=True)
+            required_ts = list(
+                filter(
+                    lambda x: (x > current_start.timestamp() * 1000) & (x < current_end.timestamp() * 1000),
+                    all_ts)
+            )
+            available_da = dataarray.sel(timestamp=required_ts, drop=True)
         else:
             available_da = None
 
         if masked is True:
-            masked_da = dataarray.where(self.masked_ts(dataarray.timestamp,
-                                                     current_end), drop=True)
+            required_ts = list(
+                filter(
+                    lambda x: x > current_end.timestamp()*1000,
+                    all_ts)
+            )
+            masked_da = dataarray.sel(timestamp=required_ts, drop=True)
         else:
             masked_da = None
 
@@ -130,9 +127,9 @@ class ConcreteWebRequestCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
 
 class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
     def __init__(self,
+                 olhcv_field,
                  overall_start,
                  overall_end,
-                 olhcv_field,
                  candle,
                  reference_coin,
                  file_path,
@@ -161,22 +158,22 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
 
     def df_to_xarray(self,
                      df):
-        dataarray = xr.DataArray(df)
-        dataarray = dataarray.rename({"dim_1": "base_assets"})
-        full_da = dataarray.expand_dims({"reference_assets": [self.reference_coin],
-                                         "ohlcv_fields": [self.ohlcv_field, "weight"]})
-        # For some reason it is not WRITEABLE when dimensions expanded
-        return full_da.copy()
-
-    def substitute_weight_value(self,
-                                dataarray):
-        dataarray.loc[{"ohlcv_fields": "weight"}] = self.candle
-        return dataarray
+        underlying_np = np.array([[df.values,np.full(df.shape,self.candle)]])
+        return xr.DataArray(underlying_np,
+                            dims=["reference_assets",
+                                  "ohlcv_fields",
+                                  "timestamp",
+                                  "base_assets"],
+                            coords=[
+                                [self.reference_coin],
+                                [self.ohlcv_field, "weight"],
+                                df.index,
+                                df.columns])
 
     def get_fresh_xarray(self):
         df = self.get_df()
-        da = self.df_to_xarray(df)
-        return self.substitute_weight_value(da)
+        logger.info("Finished accessing the sql to generate the df")
+        return self.df_to_xarray(df)
 
 
 def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,

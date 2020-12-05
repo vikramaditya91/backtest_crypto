@@ -16,6 +16,7 @@ from crypto_oversold.raw_history.access_raw_history import XArrayWebRequest, get
 import logging
 import tempfile
 
+logger = logging.getLogger(__name__)
 
 class AbstractIdentifyCreator(ABC):
     @abstractmethod
@@ -85,23 +86,17 @@ class AbstractConcreteIdentify(ABC, Borg):
         if pd.isnull(
                 self.multi_index_series[start_time][end_time]
         ):
-            self.multi_index_series[start_time][end_time] = {oversold_coin:
-                                                             self.get_potential_coins_for(start_time,
-                                                                                          end_time,
-                                                                                          **kwargs)}
+            self.multi_index_series[start_time, end_time] = [{oversold_coin: self.get_potential_coins_for(start_time, end_time, **kwargs)}]
         else:
-            if isinstance(self.multi_index_series[start_time][end_time], dict):
-                if oversold_coin not in self.multi_index_series[start_time][end_time].keys():
-                    self.multi_index_series[start_time][end_time] = {
-                        oversold_coin:
-                        self.get_potential_coins_for(**kwargs)
-                    }
-                else:
-                    return self.multi_index_series[start_time][end_time][oversold_coin]
-            else:
-                raise TypeError(f"The entry for start_time:{start_time},"
-                                f" end_time: {end_time} "
-                                f"{self.multi_index_series[start_time][end_time]} is not a Dict")
+            if isinstance(self.multi_index_series[start_time, end_time], list):
+                if oversold_coin not in self.multi_index_series[start_time][end_time][0].keys():
+                    self.multi_index_series[start_time, end_time].update(
+                        {
+                            oversold_coin:
+                                self.get_potential_coins_for(**kwargs)
+                        }
+                    )
+        return self.multi_index_series[start_time, end_time][0][oversold_coin]
 
     @abstractmethod
     def get_potential_coins_for(self, *args, **kwargs):
@@ -133,17 +128,31 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                               end_time,
                                               available=True,
                                               masked=False)
+        if available_da.timestamp.__len__() == 0:
+            return []
         normalized_field = f"{ohlcv_field}_normalized_by_weight"
 
         pre_processed_instance = preprocess_oversold_calc. \
-            ReformatForOversoldCalc(exchange=self.data_source_specific)
-        pre_processed_da = pre_processed_instance.get_dataarray_for_oversold_calc(available_da)
+            ReformatForOversoldCalc(exchange=self.data_source_specific,
+                                    timestamp_drop_fraction=0.5,
+                                    coin_drop_fraction=0.975)
+
+        pre_processed_da = pre_processed_instance.perform_cleaning_operations(available_da,
+                                                                              cleaners=["remove_futures",
+                                                                                        "type_convert_datarray",
+                                                                                        "entire_na_column_removal",
+                                                                                        "remove_coins_with_missing_data",
+                                                                                        "drop_coins_ending_latest_nan",
+                                                                                        "remove_largely_invalid_ts",
+                                                                                        "remove_null_rows_absolute"])
+        logger.debug(f"The dataarray in the unmasked history has been pre-processed for {start_time} {end_time}")
 
         candle_independent_instance = candle_independent.CandleIndependence. \
             create_candle_independent_instance(pre_processed_da)
         candle_independent_da = candle_independent_instance.get_values_candle_independent(
             weight_average_tuple=(ohlcv_field,)
         )
+        logger.debug(f"The candle independent value is calculated for {start_time} {end_time}")
 
         normalized_by_weight = candle_independent_instance. \
             normalize_da_by_weight(candle_independent_da,
@@ -153,9 +162,9 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
         normalize_against_tickers_instance = normalize_by_all_tickers.NormalizeAgainstTickers()
         normalized_ds = normalize_against_tickers_instance. \
             normalize_against_other_coins(
-            normalized_by_weight,
-            to_normalize=(normalized_field,)
-        )
+                normalized_by_weight,
+                to_normalize=(normalized_field,)
+            )
 
         identify_latest_oversold = identify_oversold.IdentifyOversold(normalized_ds)
         oversold_coins = identify_latest_oversold. \
@@ -163,6 +172,8 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                 data_var=normalized_field,
                 upper_limit=higher_cutoff
             )
+        logger.debug(f"Oversold coins are: {oversold_coins}")
+        return oversold_coins.base_assets.values.tolist()
 
 
 def get_potential_coin_at(creator: AbstractIdentifyCreator,

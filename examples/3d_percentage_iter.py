@@ -1,23 +1,24 @@
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime, timedelta
 from backtest_crypto.history_collect.gather_history import yield_split_coin_history, store_largest_xarray, get_history_between
-from crypto_history import class_builders
+from crypto_history import class_builders, init_logger
 from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
-    ManualSourceIterators, ManualSuccessIterators, DataVars
+    ManualSourceIterators, ManualSuccessIterators, Targets
 from pprint import pprint
+import logging
 from backtest_crypto.verify.gather import Gather
-from backtest_crypto.verify.simulate import SimulateDataset
+from backtest_crypto.verify.simulate import validate_success, MarketBuyLimitSellCreator
 from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator
 
 def main():
-
-    overall_start = datetime(day=25, month=1, year=2017)
+    init_logger(logging.DEBUG)
+    overall_start = datetime(day=25, month=8, year=2018)
     overall_end = datetime(day=18, month=11, year=2020)
     reference_coin = "BTC"
     ohlcv_field = "open"
-    candle = "3d"
-    interval = "3d"
+    candle = "1h"
+    interval = "1h"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -36,7 +37,7 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=f"/home/vikramaditya/PycharmProjects/{candle}.db",
+                         file_path=f"/home/vikramaditya/PycharmProjects/database/25_Jan_2017_TO_18_Nov_2020_BTC_1h.db",
                          mapped_class=OversoldCoins,
                          table_name=table_name)
 
@@ -44,20 +45,9 @@ def main():
                                                   time_interval_iterator=time_interval_iterator,
                                                   )
 
-    manual_source_iterators = ManualSourceIterators()
-    manual_success_iterators = ManualSuccessIterators()
-    data_vars = DataVars()
-    gather_all = Gather(time_interval_iterator,
-                        success_iterators=[manual_success_iterators.percentage_increase,
-                                           manual_success_iterators.percentge_reduction],
-                        source_iterators=[manual_source_iterators.high_cutoff,
-                                          manual_source_iterators.low_cutoff,
-                                          ],
-                        data_vars=data_vars.data_vars())
-    yield_dataset_items = gather_all.yield_items_from_dataset()
-
-
-    identify = get_potential_coin_at(CryptoOversoldCreator(),
+    potential_start = datetime(2018, 8, 25, 0, 0)
+    potential_end = datetime(2020, 10, 5, 0, 0)
+    potential_coins = get_potential_coin_at(CryptoOversoldCreator(),
                                      time_interval_iterator,
                                      data_source_general=data_source_general,
                                      data_source_specific=data_source_specific,
@@ -65,17 +55,18 @@ def main():
                                      higher_cutoff=0.7,
                                      reference_coin=reference_coin,
                                      ohlcv_field=ohlcv_field,
-                                     start_time=datetime(2017, 1, 25, 0, 0),
-                                     end_time=datetime(2017, 1, 26, 0, 0)
+                                     start_time=potential_start,
+                                     end_time=potential_end
                                      )
 
-    simulate = SimulateDataset()
-    simulate.populate_dataset(
-        yield_dataset_items,
-        coin_history_yield
-
-
-    )
+    validate_success(MarketBuyLimitSellCreator(),
+                     sqlite_access_creator,
+                     potential_coins,
+                     potential_end,
+                     simulation_timedelta=timedelta(days=20),
+                     success_criteria=["number_of_bought_coins_hit_target"],
+                     ohlcv_field=ohlcv_field,
+                     percentage_increase=0.05)
 
     for known_history, masked_history in coin_history_yield:
         print("known_history.shape ", known_history.shape)

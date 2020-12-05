@@ -98,12 +98,9 @@ class ManualSuccessIterators:
         return [timedelta(days=20)]
 
 
-class DataVars:
-    def data_vars(self):
+class Targets:
+    def after_sell_targets(self):
         return [
-            # Number of oversold coins that were actually bought out of all Binance coins
-            "percentage_of_coins_bought",
-
             # Number of oversold coins that actually hit the target
             "number_of_bought_coins_hit_target",
 
@@ -119,5 +116,11 @@ class DataVars:
             # At the end of 20-days, value of bought coins if they were sold when the target hit
             "end_of_run_value_of_bought_coins_if_sold_on_target",
             ]
+
+    def before_buy_targets(self):
+        return [
+            # Number of oversold coins that were actually bought out of all Binance coins
+            "percentage_of_coins_bought",
+        ]
 
 
