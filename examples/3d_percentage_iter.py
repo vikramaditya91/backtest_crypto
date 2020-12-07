@@ -7,6 +7,8 @@ from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators, Targets
 from pprint import pprint
 import logging
+import pathlib
+import pickle
 from backtest_crypto.verify.gather import Gather
 from backtest_crypto.verify.simulate import validate_success, MarketBuyLimitSellCreator
 from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator
@@ -61,11 +63,8 @@ def main():
                           target_iterators=["number_of_bought_coins_hit_target"],
                           additional_settings={"percentage_increase": 0.05})
     collective_ds = gather_items.collect_all_items()
-    import numpy as np
-    import pickle
-    with open(f"/home/vikramaditya/PycharmProjects/database/coin_3d_iter_results_{interval}", "wb") as fp:
+    with open(pathlib.Path(pathlib.Path.cwd() / "database" / f"coin_3d_iter_results_{interval}"), "wb") as fp:
         pickle.dump(collective_ds, fp)
-    a = 1
 
 
 
