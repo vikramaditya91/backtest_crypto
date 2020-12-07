@@ -1,8 +1,10 @@
-import logging
 import itertools
-import xarray as xr
+import logging
+from datetime import timedelta
+
 import numpy as np
-from datetime import datetime, timedelta
+import xarray as xr
+
 from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator
 from backtest_crypto.verify.simulate import validate_success, MarketBuyLimitSellCreator
 
@@ -20,7 +22,7 @@ class Gather:
                  source_iterators,
                  success_iterators,
                  target_iterators,
-                 additional_settings):
+                 ):
         self.data_accessor = data_accessor
         self.data_source_general = data_source_general
         self.data_source_specific = data_source_specific
@@ -30,7 +32,6 @@ class Gather:
         self.success_iterators = success_iterators
         self.source_iterators = source_iterators
         self.target_iterators = target_iterators
-        self.additional_settings = additional_settings
         self.time_interval_coordinate = "time_intervals"
         self.dataset_values = self.initialize_dataset()
 
@@ -64,14 +65,18 @@ class Gather:
                 self.dataset_values.coords, coordinate
             )}]
 
+    @staticmethod
+    def numpy_dt_to_timedelta(numpy_dt):
+        return timedelta(
+            seconds=int(numpy_dt / np.timedelta64(1, 's'))
+        )
+
     def collect_all_items(self):
         for coords in self.yield_items_from_dataset():
             potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
-            simulation_timedelta = timedelta(
-                                           seconds=int(coords.days_to_run.values / np.timedelta64(1, 's'))
-                                       )
+            simulation_timedelta = self.numpy_dt_to_timedelta(coords.days_to_run.values)
 
             potential_coins = get_potential_coin_at(
                 CryptoOversoldCreator(),
@@ -85,15 +90,21 @@ class Gather:
                 start_time=potential_start,
                 end_time=potential_end
             )
+            success_dict = {}
+            for item in self.success_iterators:
+                if item.__name__ == "days_to_run":
+                    success_dict["days_to_run"] = self.numpy_dt_to_timedelta(coords["days_to_run"].values)
+                else:
+                    success_dict[item.__name__] = coords[item.__name__].values.tolist()
 
             success_dict = validate_success(MarketBuyLimitSellCreator(),
-                                       self.data_accessor,
-                                       potential_coins,
-                                       potential_end,
-                                       simulation_timedelta=simulation_timedelta,
-                                       success_criteria=self.target_iterators,
-                                       ohlcv_field=self.ohlcv_field,
-                                       **self.additional_settings)
+                                            self.data_accessor,
+                                            potential_coins,
+                                            potential_end,
+                                            simulation_timedelta=simulation_timedelta,
+                                            success_criteria=self.target_iterators,
+                                            ohlcv_field=self.ohlcv_field,
+                                            **success_dict)
             self.set_success_in_dataset(success_dict,
                                         coords)
         return self.dataset_values

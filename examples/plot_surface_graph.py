@@ -11,7 +11,7 @@ def main():
 
     show_graph(SurfaceGraph3DCreator(),
                simulated_dataset,
-               data_vars=["number_of_bought_coins_hit_target"],
+               data_vars=["percentage_of_bought_coins_hit_target"],
                surface_graph_axes=["time_intervals",
                                    "high_cutoff"]
                )
