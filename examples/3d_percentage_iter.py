@@ -1,17 +1,15 @@
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-from backtest_crypto.history_collect.gather_history import yield_split_coin_history, store_largest_xarray, get_history_between
+from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from crypto_history import class_builders, init_logger
 from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
-    ManualSourceIterators, ManualSuccessIterators, Targets
-from pprint import pprint
+    ManualSourceIterators, ManualSuccessIterators
 import logging
 import pathlib
 import pickle
 from backtest_crypto.verify.gather import Gather
-from backtest_crypto.verify.simulate import validate_success, MarketBuyLimitSellCreator
-from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator
+
 
 def main():
     init_logger(logging.DEBUG)
@@ -39,7 +37,7 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=str(pathlib.Path(pathlib.Path.cwd().parent /
+                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
                                                     "database" /
                                                     f"25_Jan_2017_TO_18_Nov_2020_BTC_{candle}.db")),
                          mapped_class=OversoldCoins,
@@ -65,9 +63,8 @@ def main():
                           target_iterators=["number_of_bought_coins_hit_target"],
                           additional_settings={"percentage_increase": 0.05})
     collective_ds = gather_items.collect_all_items()
-    with open(pathlib.Path(pathlib.Path.cwd().parent / "database" / f"coin_3d_iter_results_{interval}"), "wb") as fp:
+    with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}"), "wb") as fp:
         pickle.dump(collective_ds, fp)
-
 
 
 if __name__ == "__main__":
