@@ -39,7 +39,9 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=f"/home/vikramaditya/PycharmProjects/database/25_Jan_2017_TO_18_Nov_2020_BTC_{candle}.db",
+                         file_path=str(pathlib.Path(pathlib.Path.cwd().parent /
+                                                    "database" /
+                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_{candle}.db")),
                          mapped_class=OversoldCoins,
                          table_name=table_name)
 
@@ -63,7 +65,7 @@ def main():
                           target_iterators=["number_of_bought_coins_hit_target"],
                           additional_settings={"percentage_increase": 0.05})
     collective_ds = gather_items.collect_all_items()
-    with open(pathlib.Path(pathlib.Path.cwd() / "database" / f"coin_3d_iter_results_{interval}"), "wb") as fp:
+    with open(pathlib.Path(pathlib.Path.cwd().parent / "database" / f"coin_3d_iter_results_{interval}"), "wb") as fp:
         pickle.dump(collective_ds, fp)
 
 
