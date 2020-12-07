@@ -89,7 +89,7 @@ class TimeIntervalIterator:
 
 class ManualSourceIterators:
     def high_cutoff(self):
-        return np.range(0.6, 1, 0.25)
+        return np.arange(0.6, 1, 0.25)
 
     def low_cutoff(self):
         return [0]
