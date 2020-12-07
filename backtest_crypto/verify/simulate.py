@@ -67,6 +67,8 @@ class AbstractSimulatorConcrete(ABC):
 
 class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
     def number_of_bought_coins_hit_target(self, percentage_increase):
+        if not self.potential_coins:
+            return 0
         max_relevant = self.history_future.sel(base_assets=self.potential_coins)
         max_values = max_relevant.max(axis=2).loc[
             {"ohlcv_fields": self.ohlcv_field}

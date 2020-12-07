@@ -156,7 +156,7 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                               available=True,
                                               masked=False)
         if available_da.timestamp.__len__() == 0:
-            return []
+            return None
         normalized_field = f"{ohlcv_field}_normalized_by_weight"
 
         pre_processed_instance = preprocess_oversold_calc. \
@@ -199,7 +199,11 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                     *args,
                                     **kwargs):
         last_ts_coins = self.get_potential_value_of_all_coins(*args, **kwargs)
-        return identify_oversold.IdentifyOversold.get_dictionary_of_last_ts_all_coins(last_ts_coins)
+        if last_ts_coins is not None:
+            return identify_oversold.IdentifyOversold.\
+                get_dictionary_of_last_ts_all_coins(last_ts_coins)
+        else:
+            return []
 
     def filter_required_coins_from_all_coin_dict(self,
                                                  dictionary_of_all_coins,
@@ -208,7 +212,10 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                                  reference_coin,
                                                  ohlcv_field,
                                                  ):
-        return list(dict(filter(lambda x: higher_cutoff > x[1] > lower_cutoff, dictionary_of_all_coins.items())).keys())
+        if dictionary_of_all_coins:
+            return identify_oversold.IdentifyOversold.filter_coins_dict_by_limit(dictionary_of_all_coins,
+                                                                                 higher_cutoff,
+                                                                                 lower_cutoff)
 
 
 def get_potential_coin_at(creator: AbstractIdentifyCreator,
