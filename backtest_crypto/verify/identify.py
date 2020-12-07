@@ -1,22 +1,18 @@
+import logging
 from abc import ABC, abstractmethod
+from collections import namedtuple
+
 import pandas as pd
 from crypto_history.utilities.general_utilities import Borg
-from backtest_crypto.utilities.iterators import TimeIntervalIterator
-from collections import namedtuple
-import asyncio
-import crypto_history
-from pprint import pprint
-from datetime import timedelta
-from crypto_oversold import class_builders, init_logger
-from backtest_crypto.history_collect.gather_history import AbstractRawHistoryObtainCreator, get_history_between
+from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, \
     identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
-from crypto_oversold.emit_data.save_to_disk import write_oversold_da_to_file
-from crypto_oversold.raw_history.access_raw_history import XArrayWebRequest, get_xarray_dataarray
-import logging
-import tempfile
+
+from backtest_crypto.history_collect.gather_history import get_history_between
+from backtest_crypto.utilities.iterators import TimeIntervalIterator
 
 logger = logging.getLogger(__name__)
+
 
 class AbstractIdentifyCreator(ABC):
     @abstractmethod
@@ -53,7 +49,8 @@ class AbstractConcreteIdentify(ABC, Borg):
         super().__init__()
 
         if not self._shared_state:
-            self.multi_index_series = self.initialize_series(time_interval_iterator)
+            self.multi_index_series_oversold_coins = self.initialize_series(time_interval_iterator)
+            self.multi_index_series_all_coins = self.initialize_series(time_interval_iterator)
         self.PotentialCoin = None
         self.data_source_specific = data_source_specific
         self.data_source_general = data_source_general
@@ -72,34 +69,65 @@ class AbstractConcreteIdentify(ABC, Borg):
                           time_interval_iterator):
         return pd.Series(index=self.get_multi_index(time_interval_iterator))
 
+    def get_last_ts_coin_dict_in_current_run(self,
+                                             start_time,
+                                             end_time,
+                                             **kwargs):
+        if pd.isnull(
+                self.multi_index_series_all_coins[start_time][end_time]
+        ):
+            last_ts_coins_dict = self.get_dictionary_of_all_coins(start_time,
+                                                                  end_time,
+                                                                  **kwargs)
+
+            self.multi_index_series_all_coins[start_time, end_time] = [last_ts_coins_dict]
+        else:
+            last_ts_coins_dict = self.multi_index_series_all_coins[start_time][end_time][0]
+        return last_ts_coins_dict
+
     def get_value_of_df_at(self,
                            start_time,
                            end_time,
                            *args,
                            **kwargs):
         oversold_coin = self.PotentialCoin(*args, **kwargs)
-        start_levels, end_levels = self.multi_index_series.index.levels
+        start_levels, end_levels = self.multi_index_series_oversold_coins.index.levels
         assert start_time in start_levels, \
             f"{start_time} not in the multi-index"
         assert end_time in end_levels, \
             f"{end_time} not in the multi-index"
         if pd.isnull(
-                self.multi_index_series[start_time][end_time]
+                self.multi_index_series_oversold_coins[start_time, end_time]
         ):
-            self.multi_index_series[start_time, end_time] = [{oversold_coin: self.get_potential_coins_for(start_time, end_time, **kwargs)}]
+            if isinstance(self.multi_index_series_oversold_coins[start_time, end_time], list):
+                if oversold_coin in self.multi_index_series_oversold_coins[start_time][end_time][0].keys():
+                    return self.multi_index_series_oversold_coins[start_time, end_time][0][oversold_coin]
+
+        last_ts_coins_dict = self.get_last_ts_coin_dict_in_current_run(start_time,
+                                                                       end_time,
+                                                                       **kwargs)
+
+        list_of_oversold_coins = self.filter_required_coins_from_all_coin_dict(last_ts_coins_dict,
+                                                                               **kwargs)
+
+        if isinstance(self.multi_index_series_oversold_coins[start_time, end_time], list):
+            self.multi_index_series_oversold_coins[start_time, end_time][0].update(
+                {oversold_coin: list_of_oversold_coins}
+            )
         else:
-            if isinstance(self.multi_index_series[start_time, end_time], list):
-                if oversold_coin not in self.multi_index_series[start_time][end_time][0].keys():
-                    self.multi_index_series[start_time, end_time].update(
-                        {
-                            oversold_coin:
-                                self.get_potential_coins_for(**kwargs)
-                        }
-                    )
-        return self.multi_index_series[start_time, end_time][0][oversold_coin]
+            self.multi_index_series_oversold_coins[start_time, end_time] = [{oversold_coin: list_of_oversold_coins}]
+        return self.multi_index_series_oversold_coins[start_time, end_time][0][oversold_coin]
 
     @abstractmethod
-    def get_potential_coins_for(self, *args, **kwargs):
+    def get_potential_value_of_all_coins(self, *args, **kwargs):
+        raise NotImplementedError
+
+    @abstractmethod
+    def filter_required_coins_from_all_coin_dict(self, *args, **kwargs):
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_dictionary_of_all_coins(self, *args, **kwargs):
         raise NotImplementedError
 
 
@@ -107,20 +135,19 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.PotentialCoin = namedtuple('OversoldCoin',
-                                       ["lower_cutoff",
-                                        "higher_cutoff",
-                                        "reference_coin",
-                                        "ohlcv_field"]
-                                       )
+                                        ["lower_cutoff",
+                                         "higher_cutoff",
+                                         "reference_coin",
+                                         "ohlcv_field"]
+                                        )
 
-    def get_potential_coins_for(self,
-                                start_time,
-                                end_time,
-                                lower_cutoff,
-                                higher_cutoff,
-                                reference_coin,
-                                ohlcv_field,
-                                ):
+    def get_potential_value_of_all_coins(self,
+                                         start_time,
+                                         end_time,
+                                         lower_cutoff,
+                                         higher_cutoff,
+                                         reference_coin,
+                                         ohlcv_field):
         access_creator = class_builders.get("access_xarray").get(self.data_source_general)()
 
         available_da, _ = get_history_between(access_creator,
@@ -160,20 +187,28 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                    )
 
         normalize_against_tickers_instance = normalize_by_all_tickers.NormalizeAgainstTickers()
-        normalized_ds = normalize_against_tickers_instance. \
+        dataset_normalized_coins = normalize_against_tickers_instance. \
             normalize_against_other_coins(
-                normalized_by_weight,
-                to_normalize=(normalized_field,)
-            )
+            normalized_by_weight,
+            to_normalize=(normalized_field,)
+        )
+        return identify_oversold.IdentifyOversold.get_last_timestamp_values(dataset_normalized_coins,
+                                                                            normalized_field)
 
-        identify_latest_oversold = identify_oversold.IdentifyOversold(normalized_ds)
-        oversold_coins = identify_latest_oversold. \
-            identify_latest_oversold(
-                data_var=normalized_field,
-                upper_limit=higher_cutoff
-            )
-        logger.debug(f"Oversold coins are: {oversold_coins}")
-        return oversold_coins.base_assets.values.tolist()
+    def get_dictionary_of_all_coins(self,
+                                    *args,
+                                    **kwargs):
+        last_ts_coins = self.get_potential_value_of_all_coins(*args, **kwargs)
+        return identify_oversold.IdentifyOversold.get_dictionary_of_last_ts_all_coins(last_ts_coins)
+
+    def filter_required_coins_from_all_coin_dict(self,
+                                                 dictionary_of_all_coins,
+                                                 lower_cutoff,
+                                                 higher_cutoff,
+                                                 reference_coin,
+                                                 ohlcv_field,
+                                                 ):
+        return list(dict(filter(lambda x: higher_cutoff > x[1] > lower_cutoff, dictionary_of_all_coins.items())).keys())
 
 
 def get_potential_coin_at(creator: AbstractIdentifyCreator,

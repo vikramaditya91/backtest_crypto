@@ -70,6 +70,7 @@ class TimeIntervalIterator:
     def get_time_intervals_list(self):
         return list(self._get_time_intervals())
 
+    # TODO Should be made static
     def get_list_time_intervals_str(self,
                                     delimiter="_"):
         time_intervals = self.time_intervals
@@ -78,10 +79,17 @@ class TimeIntervalIterator:
             )
         )
 
+    @staticmethod
+    def get_datetime_objects_from_str(timestamps_separated,
+                                      delimiter="_"):
+        start, end = timestamps_separated.split(delimiter)
+        return datetime.fromtimestamp(float(start)/1000), \
+               datetime.fromtimestamp(float(end)/1000)
+
 
 class ManualSourceIterators:
     def high_cutoff(self):
-        return [0.7]
+        return [0.6, 0.7, 0.8]
 
     def low_cutoff(self):
         return [0]
@@ -89,9 +97,11 @@ class ManualSourceIterators:
 
 class ManualSuccessIterators:
     def percentage_increase(self):
+        return [0.05]
         return np.arange(0.5, 5, 0.5)
 
     def percentge_reduction(self):
+        return [0]
         return np.arange(0, -2, -0.1)
 
     def days_to_run(self):
