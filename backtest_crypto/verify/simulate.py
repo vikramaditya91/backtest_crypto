@@ -98,7 +98,12 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
         relevant_coins = self.history_future.sel(base_assets=self.potential_coins,
                                                  ohlcv_fields=[self.ohlcv_field])
         current_values = relevant_coins.loc[{"timestamp": relevant_coins.timestamp[0]}]
-        max_values = relevant_coins.max(axis=2)
+        current_values = current_values.where(lambda x: x != 0, drop=True)
+        valid_coins = current_values.base_assets.values.tolist()
+
+        relevant_coins = relevant_coins.sel(base_assets=valid_coins)
+
+        max_values = relevant_coins.sel(base_assets=valid_coins).max(axis=2)
         truth_values = current_values * (1 + percentage_increase) < max_values
         quantity_bought = 1/current_values
         bought_eth_worth = current_values * quantity_bought
@@ -106,7 +111,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
         success_coins = truth_values.where(lambda x: x == True, drop=True).base_assets.values.tolist()
         sold_value = bought_eth_worth.sel(base_assets=success_coins) * (1+percentage_increase)
 
-        unsuccessful_coins = list(set(relevant_coins.base_assets.values.tolist()) - set(success_coins))
+        unsuccessful_coins = list(set(valid_coins) - set(success_coins))
         unsold_value = (relevant_coins.sel(timestamp=relevant_coins.timestamp[-1]) * quantity_bought).sel(base_assets=unsuccessful_coins)
 
         total_value = (sum(sold_value.values.flatten()) + sum(unsold_value.values.flatten())) / \

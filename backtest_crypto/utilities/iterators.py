@@ -90,7 +90,7 @@ class TimeIntervalIterator:
 class ManualSourceIterators:
     def high_cutoff(self):
         # return [0.85]
-        return np.arange(0.6, 1, 0.025)
+        return np.arange(0.6, 1, 0.05)
 
     def low_cutoff(self):
         return [0]
@@ -99,7 +99,7 @@ class ManualSourceIterators:
 class ManualSuccessIterators:
     def percentage_increase(self):
         # return [0.025]
-        return np.arange(0.025, 0.075, 0.001)
+        return np.arange(0.025, 0.075, 0.005)
 
     def percentge_reduction(self):
         return [0]
