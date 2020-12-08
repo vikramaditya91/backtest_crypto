@@ -49,7 +49,10 @@ class Gather:
 
     def initialize_dataset(self):
         nan_da = self.initialize_dataarray()
-        return xr.Dataset(dict(map(lambda data_var: (data_var, nan_da), self.target_iterators)))
+        dataset = xr.Dataset(dict(map(lambda data_var: (data_var, nan_da), self.target_iterators)))
+        for data_variable in dataset:
+            dataset[data_variable] = dataset[data_variable].copy()
+        return dataset
 
     def yield_coordinates_to_fill(self,
                                   ds: xr.Dataset):
@@ -71,6 +74,16 @@ class Gather:
             seconds=int(numpy_dt / np.timedelta64(1, 's'))
         )
 
+    def get_simulation_arguments(self,
+                                 coords):
+        success_dict = {}
+        for item in self.success_iterators:
+            if item.__name__ == "days_to_run":
+                success_dict["days_to_run"] = self.numpy_dt_to_timedelta(coords["days_to_run"].values)
+            else:
+                success_dict[item.__name__] = coords[item.__name__].values.tolist()
+        return success_dict
+
     def collect_all_items(self):
         for coords in self.yield_items_from_dataset():
             potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
@@ -90,13 +103,8 @@ class Gather:
                 start_time=potential_start,
                 end_time=potential_end
             )
-            success_dict = {}
-            for item in self.success_iterators:
-                if item.__name__ == "days_to_run":
-                    success_dict["days_to_run"] = self.numpy_dt_to_timedelta(coords["days_to_run"].values)
-                else:
-                    success_dict[item.__name__] = coords[item.__name__].values.tolist()
 
+            simulation_arguments = self.get_simulation_arguments(coords)
             success_dict = validate_success(MarketBuyLimitSellCreator(),
                                             self.data_accessor,
                                             potential_coins,
@@ -104,7 +112,7 @@ class Gather:
                                             simulation_timedelta=simulation_timedelta,
                                             success_criteria=self.target_iterators,
                                             ohlcv_field=self.ohlcv_field,
-                                            **success_dict)
+                                            **simulation_arguments)
             self.set_success_in_dataset(success_dict,
                                         coords)
         return self.dataset_values

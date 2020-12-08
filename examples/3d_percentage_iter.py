@@ -61,10 +61,11 @@ def main():
                               success_iterators.days_to_run
                           ],
                           target_iterators=["percentage_of_bought_coins_hit_target",
-                                            "end_of_run_value_of_bought_coins_if_not_sold"]
+                                            "end_of_run_value_of_bought_coins_if_not_sold",
+                                            "end_of_run_value_of_bought_coins_if_sold_on_target"]
     )
     collective_ds = gather_items.collect_all_items()
-    with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}"), "wb") as fp:
+    with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}_temp"), "wb") as fp:
         pickle.dump(collective_ds, fp)
 
 

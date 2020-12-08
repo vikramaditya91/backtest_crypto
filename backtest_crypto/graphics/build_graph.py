@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import xarray as xr
 import numpy as np
+import pandas as pd
 from matplotlib import cm
 from matplotlib import pyplot as plt
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
@@ -42,6 +43,10 @@ class AbstractGraphConcrete(ABC):
     def get_axes_for_surface(self,
                              list_of_items,
                              multiplier):
+        if all(isinstance(
+                item, pd._libs.tslibs.timedeltas.Timedelta
+        ) for item in list_of_items):
+            list_of_items = list(map(lambda x: x.to_pytimedelta().days, list_of_items))
         return np.outer(list_of_items, np.ones(multiplier))
 
 
@@ -62,9 +67,8 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         y_axis = self.get_axes_for_surface(y_list, len(time_intervals))
         fig = plt.figure()
         ax = plt.axes(projection="3d")
-        z_axis = values_to_plot.copy()
-        z_axis.values.resize(len(x_axis), len(y_axis))
-        z_axis_values = z_axis.values
+        z_axis_values = values_to_plot.copy().values
+        z_axis_values.resize(len(x_axis), len(y_axis))
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
         ax.plot_surface(x_axis, y_axis.T, z_axis_values, cmap=cm.coolwarm, edgecolor='none', alpha=0.5)
 
