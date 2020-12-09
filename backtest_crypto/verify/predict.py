@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-
 from backtest_crypto.history_collect.gather_history import get_history_between
 
 
@@ -63,6 +62,10 @@ class AbstractSimulatorConcrete(ABC):
     def end_of_run_value_of_bought_coins_if_not_sold(self, *args, **kwargs):
         pass
 
+    @abstractmethod
+    def end_of_run_value_of_bought_coins_if_sold_on_target(self, *args, **kwargs):
+        pass
+
     def confirm_check_valid(self):
         if not self.potential_coins:
             return False
@@ -76,7 +79,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
                                               percentage_increase,
                                               days_to_run):
         relevant_coins = self.history_future.sel(base_assets=self.potential_coins,
-                                               ohlcv_fields=[self.ohlcv_field])
+                                                 ohlcv_fields=[self.ohlcv_field])
         max_values = relevant_coins.max(axis=2)
         current_values = relevant_coins.loc[{"timestamp": relevant_coins.timestamp[0]}]
         truth_values = current_values * (1 + percentage_increase) < max_values

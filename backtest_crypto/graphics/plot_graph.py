@@ -55,18 +55,36 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
 
     def generate_graph(self,
                        data_vars,
-                       surface_graph_axes):
+                       surface_graph_axes,
+                       standard_other_dict):
         assert len(data_vars) == 1, f"Should have only 1 data_vars to plot"
         assert len(surface_graph_axes) == 2, f"Should have only 2 axes"
-        values_to_plot = self.simulation_dataset[data_vars[0]]
-        time_intervals = self.get_time_interval_list(values_to_plot.get_index(surface_graph_axes[0]).to_list())
-        y_list = values_to_plot.get_index(surface_graph_axes[1]).to_list()
+        values_to_plot = self.simulation_dataset[data_vars[0]].sel(standard_other_dict,
+                                                                   tolerance=0.01,
+                                                                   method="nearest")
+        if "time_intervals" in surface_graph_axes:
+            time_intervals = self.get_time_interval_list(values_to_plot.get_index(surface_graph_axes[0]).to_list())
+        else:
+            values_to_plot = values_to_plot.mean(dim="time_intervals")
+            x_index = values_to_plot.get_index(surface_graph_axes[0])
+            y_index = values_to_plot.get_index(surface_graph_axes[1])
 
-        x_axis = self.get_axes_for_surface(list(map(lambda x: x.timestamp(), time_intervals)),
-                                           y_list.__len__())
-        y_axis = self.get_axes_for_surface(y_list, len(time_intervals))
+            x_axis = self.get_axes_for_surface(x_index.values.tolist(),
+                                               len(y_index))
+            y_axis = self.get_axes_for_surface(y_index.values.tolist(),
+                                               len(x_index))
+
+        # y_list = values_to_plot.get_index(surface_graph_axes[1]).to_list()
+        #
+        # x_axis = self.get_axes_for_surface(list(map(lambda x: x.timestamp(), time_intervals)),
+        #                                    y_list.__len__())
+        # y_axis = self.get_axes_for_surface(y_list, len(time_intervals))
         fig = plt.figure()
         ax = plt.axes(projection="3d")
+        ax.set_xlabel(surface_graph_axes[0])
+        ax.set_ylabel(surface_graph_axes[1])
+        ax.set_zlabel(data_vars[0])
+
         z_axis_values = values_to_plot.copy().values
         z_axis_values.resize(len(x_axis), len(y_axis))
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
@@ -77,9 +95,7 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
 
 
 def show_graph(creator: AbstractGraphCreator,
-               simulation_dataset: xr.Dataset,
-               data_vars,
-               surface_graph_axes):
-    return creator.visualize_graph(simulation_dataset,
-                                   data_vars,
-                                   surface_graph_axes)
+               *args,
+               **kwargs):
+    return creator.visualize_graph(*args,
+                                   **kwargs)

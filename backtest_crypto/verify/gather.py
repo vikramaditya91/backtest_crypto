@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 
 from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator
-from backtest_crypto.verify.simulate import validate_success, MarketBuyLimitSellCreator
+from backtest_crypto.verify.predict import validate_success, MarketBuyLimitSellCreator
 
 logger = logging.getLogger(__name__)
 

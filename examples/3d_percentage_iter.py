@@ -17,8 +17,8 @@ def main():
     overall_end = datetime(day=18, month=11, year=2020)
     reference_coin = "BTC"
     ohlcv_field = "open"
-    candle = "1d"
-    interval = "1d"
+    candle = "1h"
+    interval = "1h"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -65,7 +65,7 @@ def main():
                                             "end_of_run_value_of_bought_coins_if_sold_on_target"]
     )
     collective_ds = gather_items.collect_all_items()
-    with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}_temp"), "wb") as fp:
+    with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}_hourly"), "wb") as fp:
         pickle.dump(collective_ds, fp)
 
 
