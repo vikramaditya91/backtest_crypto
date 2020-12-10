@@ -1,5 +1,9 @@
+import logging
 from abc import ABC, abstractmethod
-from backtest_crypto.history_collect.gather_history import get_history_between
+from backtest_crypto.history_collect.gather_history import get_history_between, get_simplified_history
+from backtest_crypto.utilities.general import InsufficientHistory
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractSimulationCreator(ABC):
@@ -15,18 +19,21 @@ class AbstractSimulationCreator(ABC):
                           ohlcv_field,
                           *args,
                           **kwargs):
-        concrete = self.factory_method(history_access,
-                                       potential_coins,
-                                       predicted_at,
-                                       simulation_timedelta,
-                                       ohlcv_field)
         criteria = {}
-        for item in success_criteria:
-            if concrete.confirm_check_valid():
-                method = getattr(concrete, item)
-                criteria[item] = method(*args, **kwargs)
-            else:
-                criteria[item] = None
+        try:
+            concrete = self.factory_method(history_access,
+                                           potential_coins,
+                                           predicted_at,
+                                           simulation_timedelta,
+                                           ohlcv_field)
+            for item in success_criteria:
+                if concrete.confirm_check_valid():
+                    method = getattr(concrete, item)
+                    criteria[item] = method(*args, **kwargs)
+                else:
+                    criteria[item] = None
+        except InsufficientHistory:
+            logger.warning(f"Insufficient history on {predicted_at}")
         return criteria
 
 
@@ -47,11 +54,12 @@ class AbstractSimulatorConcrete(ABC):
         self.potential_coins = potential_coins
         self.predicted_at = predicted_at
         self.simulation_timedelta = simulation_timedelta
-        history_future, _ = get_history_between(history_access,
+        history_future = get_simplified_history(history_access,
                                                 start_time=predicted_at,
-                                                end_time=predicted_at + simulation_timedelta,
-                                                available=True,
-                                                masked=False)
+                                                end_time=predicted_at+simulation_timedelta,
+                                                backward_details=(),
+                                                remaining="1h"
+                                                )
         self.history_future = history_future.fillna(0)
 
     @abstractmethod

@@ -7,9 +7,12 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 from typing import Union, List
+from collections import Counter
 from abc import ABC, abstractmethod
+from itertools import chain
 from sqlalchemy import create_engine
 import crypto_oversold
+from backtest_crypto.utilities.general import Singleton
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from crypto_history.utilities.general_utilities import register_factory, Borg
 from crypto_history.utilities.general_utilities import check_for_write_access
@@ -36,6 +39,12 @@ class AbstractRawHistoryObtainCreator(ABC):
         product = self.factory_method(*args, **kwargs)
         product.store_largest_da_on_borg(product.get_fresh_xarray())
 
+    def merge_simplified_history(self,
+                                 *args,
+                                 **kwargs):
+        product = self.factory_method()
+        return product.get_merged_histories(*args, **kwargs)
+
 
 @register_factory(section="access_xarray", identifier="web_request")
 class WebRequestCoinHistoryCreator(AbstractRawHistoryObtainCreator):
@@ -51,15 +60,6 @@ class SQLiteCoinHistoryCreator(AbstractRawHistoryObtainCreator):
         return ConcreteSQLiteCoinHistoryAccess(*args, **kwargs)
 
 
-class Singleton (type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
 class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
     def __init__(self,
                  *args,
@@ -67,26 +67,31 @@ class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
         super().__init__(*args, **kwargs)
 
     @abstractmethod
+    def get_merged_histories(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
     def get_fresh_xarray(self):
         pass
 
-    def store_largest_da_on_borg(self, dataarray):
+    def store_largest_da_on_borg(self, dataarray_dict):
         # TODO Certainly better ways to do it
-        self.largest_xarray = dataarray
+        self.largest_xarray_dict = dataarray_dict
 
     def get_xarray(self):
-        if self.largest_xarray is None:
-            dataarray = self.get_fresh_xarray()
-            self.store_largest_da_on_borg(dataarray)
+        if self.largest_xarray_dict is None:
+            dataarray_dict = self.get_fresh_xarray()
+            self.store_largest_da_on_borg(dataarray_dict)
         else:
-            dataarray = self.largest_xarray
-        return dataarray
+            dataarray_dict = self.largest_xarray_dict
+        return dataarray_dict
 
     def get_split_xarray(self,
                          current_start,
                          current_end,
                          available=False,
-                         masked=False):
+                         masked=False,
+                         default="1h"):
         if self.largest_xarray is None:
             dataarray = self.get_fresh_xarray()
             self.store_largest_da_on_borg(dataarray)
@@ -134,7 +139,7 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                  reference_coin,
                  file_path,
                  mapped_class,
-                 table_name
+                 table_name_list
                  ):
         super(ConcreteSQLiteCoinHistoryAccess, self).__init__()
         self.largest_xarray = None
@@ -150,15 +155,20 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
             echo=True
         )
         self.mapped_class = mapped_class
-        self.table_name = table_name
+        self.table_name_list = table_name_list
 
-    def get_df(self):
-        raw_df = pd.read_sql_table(self.table_name, con=self.engine)
-        return raw_df.set_index('timestamp', drop=True)
+    def get_list_of_df(self):
+        df_dict = {}
+        for table_name in self.table_name_list:
+            raw_df = pd.read_sql_table(table_name, con=self.engine)
+            raw_df = raw_df.set_index('timestamp', drop=True)
+            df_dict[table_name.split("_")[-1]] = raw_df
+        return df_dict
 
     def df_to_xarray(self,
+                     candle,
                      df):
-        underlying_np = np.array([[df.values,np.full(df.shape,self.candle)]])
+        underlying_np = np.array([[df.values,np.full(df.shape, candle)]])
         return xr.DataArray(underlying_np,
                             dims=["reference_assets",
                                   "ohlcv_fields",
@@ -171,9 +181,47 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                                 df.columns])
 
     def get_fresh_xarray(self):
-        df = self.get_df()
-        logger.info("Finished accessing the sql to generate the df")
-        return self.df_to_xarray(df)
+        df_dict = self.get_list_of_df()
+        x_array_dict = {}
+        for candle, df in df_dict.items():
+            logger.info("Finished accessing the sql to generate the df")
+            x_array_dict[candle] = self.df_to_xarray(candle, df)
+        return x_array_dict
+
+    @staticmethod
+    def select_history(start,
+                       end,
+                       dataarray):
+        timestamps = list(
+            filter(
+                lambda x: start.timestamp()*1000 > x > end.timestamp()*1000, dataarray.timestamp.values.tolist())
+        )
+        return dataarray.sel(timestamp=timestamps)
+
+    def get_merged_histories(self,
+                             start_time,
+                             end_time,
+                             backward_details,
+                             remaining):
+        sub_histories = []
+        sub_end = start_time
+        for sub_start_tdelta, sub_end_tdelta, candle in backward_details:
+            sub_start = end_time + sub_start_tdelta
+            sub_end = end_time + sub_end_tdelta
+            if sub_start < start_time:
+                sub_start = start_time
+            if sub_end < start_time:
+                sub_end = start_time
+            sub_history = self.select_history(sub_start,
+                                              sub_end,
+                                              self.largest_xarray_dict[candle])
+            sub_histories.append(sub_history)
+        sub_histories.append(self.select_history(sub_end,
+                                                 start_time,
+                                                 self.largest_xarray_dict[remaining]))
+        joined_xarray = xr.concat([*sub_histories], dim="timestamp")
+        # TODO Raise an error if history is empty
+        return joined_xarray.sortby("timestamp")
 
 
 def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
@@ -212,3 +260,10 @@ def get_history_between(creator: AbstractRawHistoryObtainCreator,
                                           end_time,
                                           available=available,
                                           masked=masked)
+
+
+def get_simplified_history(creator: AbstractRawHistoryObtainCreator,
+                           *args,
+                           **kwargs):
+    return creator.merge_simplified_history(*args,
+                                            **kwargs)

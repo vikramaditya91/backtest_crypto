@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from crypto_history import class_builders, init_logger
@@ -28,7 +27,9 @@ def main():
                                                   forward_in_time=False,
                                                   increasing_range=False)
 
-    table_name = f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_{candle}"
+    table_name_list = [f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1d",
+                   f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1h"]
+
     sqlite_access_creator = class_builders.get("access_xarray").get(data_source_general)()
 
     store_largest_xarray(sqlite_access_creator,
@@ -39,9 +40,9 @@ def main():
                          ohlcv_field=ohlcv_field,
                          file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
                                                     "database" /
-                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_{candle}.db")),
+                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.db")),
                          mapped_class=OversoldCoins,
-                         table_name=table_name)
+                         table_name_list=table_name_list)
 
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()

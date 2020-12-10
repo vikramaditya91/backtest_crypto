@@ -1,14 +1,14 @@
 import logging
 from abc import ABC, abstractmethod
 from collections import namedtuple
-
+from datetime import timedelta
 import pandas as pd
 from crypto_history.utilities.general_utilities import Borg
 from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, \
     identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
 
-from backtest_crypto.history_collect.gather_history import get_history_between
+from backtest_crypto.history_collect.gather_history import get_history_between, get_simplified_history
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,7 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                          "ohlcv_field"]
                                         )
 
+
     def get_potential_value_of_all_coins(self,
                                          start_time,
                                          end_time,
@@ -150,11 +151,13 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                          ohlcv_field):
         access_creator = class_builders.get("access_xarray").get(self.data_source_general)()
 
-        available_da, _ = get_history_between(access_creator,
-                                              start_time,
-                                              end_time,
-                                              available=True,
-                                              masked=False)
+        available_da = get_simplified_history(access_creator,
+                               start_time,
+                               end_time,
+                               backward_details=((timedelta(days=0), -timedelta(days=5), "1h"),
+                                                 (-timedelta(days=5), -timedelta(days=10), "1h"),),
+                               remaining="1d")
+
         if available_da.timestamp.__len__() == 0:
             return None
         normalized_field = f"{ohlcv_field}_normalized_by_weight"

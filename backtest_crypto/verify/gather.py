@@ -90,7 +90,7 @@ class Gather:
                 coords.time_intervals.values.tolist()
             )
             simulation_timedelta = self.numpy_dt_to_timedelta(coords.days_to_run.values)
-
+            logger.debug(f"Starting to obtain the potential coins for {potential_start} to {potential_end}")
             potential_coins = get_potential_coin_at(
                 CryptoOversoldCreator(),
                 self.time_interval_iterator,
@@ -103,6 +103,7 @@ class Gather:
                 start_time=potential_start,
                 end_time=potential_end
             )
+            logger.debug(f"obtained the potential coins for {potential_start} to {potential_end}")
 
             simulation_arguments = self.get_simulation_arguments(coords)
             success_dict = validate_success(MarketBuyLimitSellCreator(),
@@ -113,6 +114,7 @@ class Gather:
                                             success_criteria=self.target_iterators,
                                             ohlcv_field=self.ohlcv_field,
                                             **simulation_arguments)
+            logger.debug("Validating success of the potential coins")
             self.set_success_in_dataset(success_dict,
                                         coords)
         return self.dataset_values
