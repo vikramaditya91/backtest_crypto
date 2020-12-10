@@ -38,7 +38,7 @@ class AbstractGraphConcrete(ABC):
                                time_interval_list):
         time_intervals_datetime = list(map(TimeIntervalIterator.get_datetime_objects_from_str, time_interval_list))
         _, end_list = zip(*time_intervals_datetime)
-        return end_list
+        return list(map(lambda x:x.timestamp(), end_list))
 
     def get_axes_for_surface(self,
                              list_of_items,
@@ -47,7 +47,12 @@ class AbstractGraphConcrete(ABC):
                 item, pd._libs.tslibs.timedeltas.Timedelta
         ) for item in list_of_items):
             list_of_items = list(map(lambda x: x.to_pytimedelta().days, list_of_items))
-        return np.outer(list_of_items, np.ones(multiplier))
+        # TODO Very broad condition
+        if all(isinstance(
+            item, str
+        ) for item in list_of_items):
+            list_of_items = self.get_time_interval_list(list_of_items)
+        return np.tile(list_of_items, [multiplier, 1]).transpose()
 
 
 class SurfaceGraph3DConcrete(AbstractGraphConcrete):
@@ -63,7 +68,13 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                                                                    tolerance=0.01,
                                                                    method="nearest")
         if "time_intervals" in surface_graph_axes:
-            time_intervals = self.get_time_interval_list(values_to_plot.get_index(surface_graph_axes[0]).to_list())
+            time_index_in_axes = surface_graph_axes.index("time_intervals")
+            other_index_in_axes = surface_graph_axes.index([item for item in surface_graph_axes if item != "time_intervals"][0])
+            time_index = values_to_plot.get_index(surface_graph_axes[time_index_in_axes])
+            other_index = values_to_plot.get_index(surface_graph_axes[other_index_in_axes])
+
+            x_axis = self.get_axes_for_surface(time_index.values.tolist(),len(other_index))
+            y_axis = self.get_axes_for_surface(other_index.values.tolist(), len(time_index))
         else:
             values_to_plot = values_to_plot.mean(dim="time_intervals")
             x_index = values_to_plot.get_index(surface_graph_axes[0])
@@ -73,12 +84,6 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                                                len(y_index))
             y_axis = self.get_axes_for_surface(y_index.values.tolist(),
                                                len(x_index))
-
-        # y_list = values_to_plot.get_index(surface_graph_axes[1]).to_list()
-        #
-        # x_axis = self.get_axes_for_surface(list(map(lambda x: x.timestamp(), time_intervals)),
-        #                                    y_list.__len__())
-        # y_axis = self.get_axes_for_surface(y_list, len(time_intervals))
         fig = plt.figure()
         ax = plt.axes(projection="3d")
         ax.set_xlabel(surface_graph_axes[0])
@@ -91,7 +96,6 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         ax.plot_surface(x_axis, y_axis.T, z_axis_values, cmap=cm.coolwarm, edgecolor='none', alpha=0.5)
 
         plt.show()
-        a = 1
 
 
 def show_graph(creator: AbstractGraphCreator,
