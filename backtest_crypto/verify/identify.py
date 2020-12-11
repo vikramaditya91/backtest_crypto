@@ -8,7 +8,7 @@ from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, \
     identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
 
-from backtest_crypto.history_collect.gather_history import get_history_between, get_simplified_history
+from backtest_crypto.history_collect.gather_history import get_simplified_history
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 
 logger = logging.getLogger(__name__)

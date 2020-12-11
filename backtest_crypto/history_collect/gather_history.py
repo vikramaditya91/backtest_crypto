@@ -1,21 +1,12 @@
 from __future__ import annotations
-import pathlib
 import logging
-import datetime
-from sqlalchemy.orm import sessionmaker
 import xarray as xr
 import pandas as pd
 import numpy as np
-from typing import Union, List
-from collections import Counter
 from abc import ABC, abstractmethod
-from itertools import chain
 from sqlalchemy import create_engine
-import crypto_oversold
 from backtest_crypto.utilities.general import Singleton
-from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from crypto_history.utilities.general_utilities import register_factory, Borg
-from crypto_history.utilities.general_utilities import check_for_write_access
 
 logger = logging.getLogger(__package__)
 
@@ -26,12 +17,6 @@ class AbstractRawHistoryObtainCreator(ABC):
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         """factory method to create the disk-writer"""
         pass
-
-    def get_split_coin_history(self,
-                               *args,
-                               **kwargs):
-        product = self.factory_method()
-        return product.get_split_xarray(*args, **kwargs)
 
     def store_largest_xarray_in_borg(self,
                                      *args,
@@ -44,13 +29,6 @@ class AbstractRawHistoryObtainCreator(ABC):
                                  **kwargs):
         product = self.factory_method()
         return product.get_merged_histories(*args, **kwargs)
-
-
-@register_factory(section="access_xarray", identifier="web_request")
-class WebRequestCoinHistoryCreator(AbstractRawHistoryObtainCreator):
-    """JSON creator"""
-    def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
-        return ConcreteWebRequestCoinHistoryAccess(*args, **kwargs)
 
 
 @register_factory(section="access_xarray", identifier="sqlite")
@@ -85,49 +63,6 @@ class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
         else:
             dataarray_dict = self.largest_xarray_dict
         return dataarray_dict
-
-    def get_split_xarray(self,
-                         current_start,
-                         current_end,
-                         available=False,
-                         masked=False,
-                         default="1h"):
-        if self.largest_xarray is None:
-            dataarray = self.get_fresh_xarray()
-            self.store_largest_da_on_borg(dataarray)
-        else:
-            dataarray = self.largest_xarray
-
-        all_ts = dataarray.timestamp.values.tolist()
-        if available is True:
-            required_ts = list(
-                filter(
-                    lambda x: (x > current_start.timestamp() * 1000) & (x < current_end.timestamp() * 1000),
-                    all_ts)
-            )
-            available_da = dataarray.sel(timestamp=required_ts, drop=True)
-        else:
-            available_da = None
-
-        if masked is True:
-            required_ts = list(
-                filter(
-                    lambda x: x > current_end.timestamp()*1000,
-                    all_ts)
-            )
-            masked_da = dataarray.sel(timestamp=required_ts, drop=True)
-        else:
-            masked_da = None
-
-        return available_da, masked_da
-
-
-class ConcreteWebRequestCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
-    def init_state(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def get_fresh_xarray(self):
-        raise NotImplementedError
 
 
 class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
@@ -237,29 +172,6 @@ def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
                                                 candle,
                                                 *args,
                                                 **kwargs)
-
-
-def yield_split_coin_history(creator: AbstractRawHistoryObtainCreator,
-                             time_interval_iterator: TimeIntervalIterator,
-                             available=True,
-                             masked=True
-                             ):
-    for current_start, current_end in time_interval_iterator.time_intervals:
-        yield creator.get_split_coin_history(current_start,
-                                             current_end,
-                                             available,
-                                             masked)
-
-
-def get_history_between(creator: AbstractRawHistoryObtainCreator,
-                        start_time,
-                        end_time,
-                        available=True,
-                        masked=True):
-    return creator.get_split_coin_history(start_time,
-                                          end_time,
-                                          available=available,
-                                          masked=masked)
 
 
 def get_simplified_history(creator: AbstractRawHistoryObtainCreator,
