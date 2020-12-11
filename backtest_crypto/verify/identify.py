@@ -154,7 +154,7 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
         available_da = get_simplified_history(access_creator,
                                start_time,
                                end_time,
-                               backward_details=((timedelta(days=0), -timedelta(days=5), "1h"),),
+                               backward_details=((timedelta(days=0), -timedelta(days=2), "1h"),),
                                remaining="1d")
 
         if available_da.timestamp.__len__() == 0:
