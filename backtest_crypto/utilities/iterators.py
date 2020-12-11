@@ -83,8 +83,14 @@ class TimeIntervalIterator:
     def get_datetime_objects_from_str(timestamps_separated,
                                       delimiter="_"):
         start, end = timestamps_separated.split(delimiter)
-        return datetime.fromtimestamp(float(start)/1000), \
-               datetime.fromtimestamp(float(end)/1000)
+        return datetime.fromtimestamp(float(start)/1000), datetime.fromtimestamp(float(end)/1000)
+
+    @classmethod
+    def get_time_interval_list(cls,
+                               time_interval_list):
+        time_intervals_datetime = list(map(cls.get_datetime_objects_from_str, time_interval_list))
+        _, end_list = zip(*time_intervals_datetime)
+        return list(map(lambda x: x.timestamp(), end_list))
 
 
 class ManualSourceIterators:

@@ -6,7 +6,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from sqlalchemy import create_engine
 from backtest_crypto.utilities.general import Singleton
-from crypto_history.utilities.general_utilities import register_factory, Borg
+from crypto_history.utilities.general_utilities import register_factory
 
 logger = logging.getLogger(__package__)
 
