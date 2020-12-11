@@ -112,7 +112,6 @@ class Gather:
                                             success_criteria=self.target_iterators,
                                             ohlcv_field=self.ohlcv_field,
                                             **simulation_arguments)
-            logger.debug("Validating success of the potential coins")
             self.set_success_in_dataset(success_dict,
                                         coords)
         return self.dataset_values
