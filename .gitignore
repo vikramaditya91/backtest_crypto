@@ -1,6 +1,6 @@
 .idea
 html_doc
-
+database
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
