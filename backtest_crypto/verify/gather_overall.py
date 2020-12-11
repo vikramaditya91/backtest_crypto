@@ -3,14 +3,17 @@ import logging
 import numpy as np
 import xarray as xr
 from datetime import timedelta
-from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator,\
+from backtest_crypto.verify.identify_potential_coins import get_potential_coin_at, CryptoOversoldCreator,\
     get_complete_potential_coins_all_combinations
-from backtest_crypto.verify.predict import validate_success, MarketBuyLimitSellCreator
+from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
 
 logger = logging.getLogger(__name__)
 
 
 class Gather:
+    """
+    Collects the various time-stamps, gets potential coins and simulates them
+    """
     def __init__(self,
                  data_accessor,
                  data_source_general,

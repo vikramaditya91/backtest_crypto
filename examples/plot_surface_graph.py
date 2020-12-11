@@ -3,7 +3,6 @@ import pathlib
 import datetime
 from os import path
 import numpy as np
-from matplotlib import pyplot as plt
 from backtest_crypto.graphics.plot_graph import show_graph, SurfaceGraph3DCreator
 
 

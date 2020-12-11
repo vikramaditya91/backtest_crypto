@@ -8,7 +8,7 @@ from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
-from backtest_crypto.verify.gather import Gather
+from backtest_crypto.verify.gather_overall import Gather
 
 
 def main():

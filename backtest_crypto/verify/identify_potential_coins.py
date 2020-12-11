@@ -52,13 +52,14 @@ class CryptoOversoldCreator(AbstractIdentifyCreator):
         return ConcreteCryptoOversoldIdentify(*args, **kwargs)
 
 
-class AbstractConcreteIdentify(ABC, Borg):
+class AbstractConcreteIdentify(ABC):
+    _shared_state = {}
+
     def __init__(self,
                  time_interval_iterator,
                  data_source_general,
                  data_source_specific):
-        super().__init__()
-
+        self.__dict__ = self._shared_state
         if not self._shared_state:
             self.multi_index_series_oversold_coins = self.initialize_series(time_interval_iterator)
             self.multi_index_series_all_coins = self.initialize_series(time_interval_iterator)
@@ -201,9 +202,9 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
         normalize_against_tickers_instance = normalize_by_all_tickers.NormalizeAgainstTickers()
         dataset_normalized_coins = normalize_against_tickers_instance. \
             normalize_against_other_coins(
-            normalized_by_weight,
-            to_normalize=(normalized_field,)
-        )
+                normalized_by_weight,
+                to_normalize=(normalized_field,)
+            )
         return identify_oversold.IdentifyOversold.get_last_timestamp_values(dataset_normalized_coins,
                                                                             normalized_field)
 

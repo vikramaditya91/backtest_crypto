@@ -7,7 +7,7 @@ from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
 import logging
 import pathlib
 import pickle
-from backtest_crypto.verify.gather import Gather
+from backtest_crypto.verify.gather_overall import Gather
 
 
 def main():
