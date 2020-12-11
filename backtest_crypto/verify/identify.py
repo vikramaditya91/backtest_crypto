@@ -35,6 +35,14 @@ class AbstractIdentifyCreator(ABC):
                                            *args,
                                            **kwargs)
 
+    def obtain_all_potential_combinations(self,
+                                          time_interval_iterator,
+                                          data_source_general,
+                                          data_source_specific):
+        concrete = self.factory_method(time_interval_iterator,
+                                       data_source_general,
+                                       data_source_specific)
+        return concrete.multi_index_series_all_coins
 
 class CryptoOversoldCreator(AbstractIdentifyCreator):
     def factory_method(self, *args, **kwargs):
@@ -141,7 +149,6 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                          "ohlcv_field"]
                                         )
 
-
     def get_potential_value_of_all_coins(self,
                                          start_time,
                                          end_time,
@@ -234,3 +241,12 @@ def get_potential_coin_at(creator: AbstractIdentifyCreator,
                                      end_time,
                                      data_source_specific,
                                      **kwargs)
+
+
+def get_complete_potential_coins_all_combinations(creator: AbstractIdentifyCreator,
+                                                  time_interval_iterator,
+                                                  data_source_general,
+                                                  data_source_specific):
+    return creator.obtain_all_potential_combinations(time_interval_iterator,
+                                                     data_source_general,
+                                                     data_source_specific)

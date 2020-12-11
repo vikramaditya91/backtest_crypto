@@ -1,12 +1,11 @@
 import itertools
 import logging
-import time
 from datetime import timedelta
 
 import numpy as np
 import xarray as xr
-
-from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator
+from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator,\
+    get_complete_potential_coins_all_combinations
 from backtest_crypto.verify.predict import validate_success, MarketBuyLimitSellCreator
 
 logger = logging.getLogger(__name__)
@@ -85,60 +84,72 @@ class Gather:
                 success_dict[item.__name__] = coords[item.__name__].values.tolist()
         return success_dict
 
-    def collect_all_items(self):
-        # split_history_time = 0
-        # get_potential_coin_time = 0
-        # validate_success_time = 0
-        # set_success_time = 0
-        #
-        # counter = 0
+    def simulate_success(self,
+                         coords,
+                         potential_coins,
+                         potential_end,
+                         simulation_timedelta):
+        simulation_arguments = self.get_simulation_arguments(coords)
+        success_dict = validate_success(MarketBuyLimitSellCreator(),
+                                        self.data_accessor,
+                                        potential_coins,
+                                        potential_end,
+                                        simulation_timedelta=simulation_timedelta,
+                                        success_criteria=self.target_iterators,
+                                        ohlcv_field=self.ohlcv_field,
+                                        **simulation_arguments)
 
+        self.set_success_in_dataset(success_dict,
+                                    coords)
+
+    def obtain_potential(self,
+                         coords,
+                         potential_start,
+                         potential_end):
+
+        return get_potential_coin_at(
+            CryptoOversoldCreator(),
+            self.time_interval_iterator,
+            data_source_general=self.data_source_general,
+            data_source_specific=self.data_source_specific,
+            lower_cutoff=coords.low_cutoff.values.tolist(),
+            higher_cutoff=coords.high_cutoff.values.tolist(),
+            reference_coin=self.reference_coin,
+            ohlcv_field=self.ohlcv_field,
+            start_time=potential_start,
+            end_time=potential_end
+        )
+
+    def store_potential_coins_pickled(self,
+                                      pickled_file_path):
         for coords in self.yield_items_from_dataset():
-            # first = time.time()
             potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
-            second = time.time()
-            # split_history_time += (second - first)
-            simulation_timedelta = self.numpy_dt_to_timedelta(coords.days_to_run.values)
-            potential_coins = get_potential_coin_at(
-                CryptoOversoldCreator(),
-                self.time_interval_iterator,
-                data_source_general=self.data_source_general,
-                data_source_specific=self.data_source_specific,
-                lower_cutoff=coords.low_cutoff.values.tolist(),
-                higher_cutoff=coords.high_cutoff.values.tolist(),
-                reference_coin=self.reference_coin,
-                ohlcv_field=self.ohlcv_field,
-                start_time=potential_start,
-                end_time=potential_end
+            self.obtain_potential(coords,
+                                  potential_start,
+                                  potential_end)
+        pandas_series = get_complete_potential_coins_all_combinations(CryptoOversoldCreator(),
+                                                                      self.time_interval_iterator,
+                                                                      self.data_source_general,
+                                                                      self.data_source_specific)
+        pandas_series.to_pickle(pickled_file_path)
+
+    def overall_success_calculator(self):
+        for coords in self.yield_items_from_dataset():
+            potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                coords.time_intervals.values.tolist()
             )
-            third = time.time()
-            # get_potential_coin_time += (third - second)
+            potential_coins = self.obtain_potential(coords,
+                                                    potential_start,
+                                                    potential_end)
 
-            simulation_arguments = self.get_simulation_arguments(coords)
-            success_dict = validate_success(MarketBuyLimitSellCreator(),
-                                            self.data_accessor,
-                                            potential_coins,
-                                            potential_end,
-                                            simulation_timedelta=simulation_timedelta,
-                                            success_criteria=self.target_iterators,
-                                            ohlcv_field=self.ohlcv_field,
-                                            **simulation_arguments)
-            fourth = time.time()
-            # validate_success_time += (fourth - third)
-            self.set_success_in_dataset(success_dict,
-                                        coords)
-            fifth = time.time()
-            # set_success_time += fifth - fourth
+            simulation_timedelta = self.numpy_dt_to_timedelta(coords.days_to_run.values)
 
-            # counter = counter+1
-            #
-            # if counter % 200 == 0:
-            #     logger.debug(f"Split history took {split_history_time/(counter + 0.0000001)} seconds")
-            #     logger.debug(f"get_potential_coin_time took {get_potential_coin_time/(counter + 0.0000001)} seconds")
-            #     logger.debug(f"validate_success_time took {validate_success_time/(counter + 0.0000001)} seconds")
-            #     logger.debug(f"set_success_time took {set_success_time/(counter + 0.0000001)} seconds")
+            self.simulate_success(coords,
+                                  potential_coins,
+                                  potential_end,
+                                  simulation_timedelta)
 
         return self.dataset_values
 
