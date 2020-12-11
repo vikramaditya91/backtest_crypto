@@ -50,8 +50,6 @@ class AbstractGraphConcrete(ABC):
 
 
 class SurfaceGraph3DConcrete(AbstractGraphConcrete):
-    pass
-
     def get_x_y_axis(self,
                      surface_graph_axes,
                      values_to_plot):
