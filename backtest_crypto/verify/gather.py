@@ -1,5 +1,6 @@
 import itertools
 import logging
+import time
 from datetime import timedelta
 
 import numpy as np
@@ -85,10 +86,20 @@ class Gather:
         return success_dict
 
     def collect_all_items(self):
+        # split_history_time = 0
+        # get_potential_coin_time = 0
+        # validate_success_time = 0
+        # set_success_time = 0
+        #
+        # counter = 0
+
         for coords in self.yield_items_from_dataset():
+            # first = time.time()
             potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
+            second = time.time()
+            # split_history_time += (second - first)
             simulation_timedelta = self.numpy_dt_to_timedelta(coords.days_to_run.values)
             potential_coins = get_potential_coin_at(
                 CryptoOversoldCreator(),
@@ -102,6 +113,8 @@ class Gather:
                 start_time=potential_start,
                 end_time=potential_end
             )
+            third = time.time()
+            # get_potential_coin_time += (third - second)
 
             simulation_arguments = self.get_simulation_arguments(coords)
             success_dict = validate_success(MarketBuyLimitSellCreator(),
@@ -112,8 +125,21 @@ class Gather:
                                             success_criteria=self.target_iterators,
                                             ohlcv_field=self.ohlcv_field,
                                             **simulation_arguments)
+            fourth = time.time()
+            # validate_success_time += (fourth - third)
             self.set_success_in_dataset(success_dict,
                                         coords)
+            fifth = time.time()
+            # set_success_time += fifth - fourth
+
+            # counter = counter+1
+            #
+            # if counter % 200 == 0:
+            #     logger.debug(f"Split history took {split_history_time/(counter + 0.0000001)} seconds")
+            #     logger.debug(f"get_potential_coin_time took {get_potential_coin_time/(counter + 0.0000001)} seconds")
+            #     logger.debug(f"validate_success_time took {validate_success_time/(counter + 0.0000001)} seconds")
+            #     logger.debug(f"set_success_time took {set_success_time/(counter + 0.0000001)} seconds")
+
         return self.dataset_values
 
     def set_success_in_dataset(self,
