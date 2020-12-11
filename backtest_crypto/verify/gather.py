@@ -1,9 +1,8 @@
 import itertools
 import logging
-from datetime import timedelta
-
 import numpy as np
 import xarray as xr
+from datetime import timedelta
 from backtest_crypto.verify.identify import get_potential_coin_at, CryptoOversoldCreator,\
     get_complete_potential_coins_all_combinations
 from backtest_crypto.verify.predict import validate_success, MarketBuyLimitSellCreator

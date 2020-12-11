@@ -1,5 +1,4 @@
 import logging
-import time
 from abc import ABC, abstractmethod
 
 from backtest_crypto.history_collect.gather_history import get_simplified_history
