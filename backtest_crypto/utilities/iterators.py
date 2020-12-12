@@ -92,6 +92,12 @@ class TimeIntervalIterator:
         _, end_list = zip(*time_intervals_datetime)
         return list(map(lambda x: x.timestamp(), end_list))
 
+    @staticmethod
+    def numpy_dt_to_timedelta(numpy_dt):
+        return timedelta(
+            seconds=int(numpy_dt / np.timedelta64(1, 's'))
+        )
+
 
 class ManualSourceIterators:
     def high_cutoff(self):

@@ -1,10 +1,9 @@
 import itertools
 import logging
-import numpy as np
 import xarray as xr
-from datetime import timedelta
-from backtest_crypto.verify.identify_potential_coins import get_potential_coin_at, CryptoOversoldCreator,\
-    get_complete_potential_coins_all_combinations
+from backtest_crypto.utilities.iterators import TimeIntervalIterator
+from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, \
+    PotentialCoinClient
 from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
 
 logger = logging.getLogger(__name__)
@@ -70,18 +69,14 @@ class Gather:
                 self.dataset_values.coords, coordinate
             )}]
 
-    @staticmethod
-    def numpy_dt_to_timedelta(numpy_dt):
-        return timedelta(
-            seconds=int(numpy_dt / np.timedelta64(1, 's'))
-        )
-
     def get_simulation_arguments(self,
                                  coords):
         success_dict = {}
         for item in self.success_iterators:
             if item.__name__ == "days_to_run":
-                success_dict["days_to_run"] = self.numpy_dt_to_timedelta(coords["days_to_run"].values)
+                success_dict["days_to_run"] = TimeIntervalIterator.numpy_dt_to_timedelta(
+                    coords["days_to_run"].values
+                )
             else:
                 success_dict[item.__name__] = coords[item.__name__].values.tolist()
         return success_dict
@@ -105,36 +100,45 @@ class Gather:
                                     coords)
 
     def obtain_potential(self,
+                         potential_coin_client,
                          coords,
                          potential_start,
                          potential_end):
-
-        return get_potential_coin_at(
-            CryptoOversoldCreator(),
-            self.time_interval_iterator,
-            data_source_general=self.data_source_general,
-            data_source_specific=self.data_source_specific,
-            lower_cutoff=coords.low_cutoff.values.tolist(),
-            higher_cutoff=coords.high_cutoff.values.tolist(),
-            reference_coin=self.reference_coin,
-            ohlcv_field=self.ohlcv_field,
-            start_time=potential_start,
-            end_time=potential_end
+        potential_coin_strategy = dict(low_cutoff=coords.low_cutoff.values.tolist(),
+                                       high_cutoff=coords.high_cutoff.values.tolist(),
+                                       reference_coin=self.reference_coin,
+                                       ohlcv_field=self.ohlcv_field)
+        consider_history = (potential_start, potential_end)
+        return potential_coin_client.get_potential_coin_at(
+            consider_history=consider_history,
+            potential_coin_strategy=potential_coin_strategy,
         )
 
     def store_potential_coins_pickled(self,
+                                      narrowed_start_time,
+                                      narrowed_end_time,
                                       pickled_file_path):
+        data_source = (self.data_source_general, self.data_source_specific)
+        potential_coin_client = PotentialCoinClient(self.time_interval_iterator,
+                                                    CryptoOversoldCreator(),
+                                                    data_source,
+                                                    )
         for coords in self.yield_items_from_dataset():
-            potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
+            string_start_end = coords.time_intervals.values.tolist()
+            if not isinstance(string_start_end, str):
+                logger.warning("Something has gone horribly wrong. The string is not okay."
+                               f"Vikra. Check what happened for {string_start_end}")
+                continue
+
+            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
-            self.obtain_potential(coords,
-                                  potential_start,
-                                  potential_end)
-        pandas_series = get_complete_potential_coins_all_combinations(CryptoOversoldCreator(),
-                                                                      self.time_interval_iterator,
-                                                                      self.data_source_general,
-                                                                      self.data_source_specific)
+            if (narrowed_start_time >= history_start) and (narrowed_end_time <= history_end):
+                self.obtain_potential(potential_coin_client,
+                                      coords,
+                                      history_start,
+                                      history_end)
+        pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
         pandas_series.to_pickle(pickled_file_path)
 
     def overall_success_calculator(self):
@@ -146,7 +150,7 @@ class Gather:
                                                     potential_start,
                                                     potential_end)
 
-            simulation_timedelta = self.numpy_dt_to_timedelta(coords.days_to_run.values)
+            simulation_timedelta = TimeIntervalIterator.numpy_dt_to_timedelta(coords.days_to_run.values)
 
             self.simulate_success(coords,
                                   potential_coins,

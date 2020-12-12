@@ -18,15 +18,8 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "1h"
     data_source_general = "sqlite"
     data_source_specific = "binance"
-
-    time_interval_iterator = TimeIntervalIterator(overall_start,
-                                                  overall_end,
-                                                  interval,
-                                                  forward_in_time=False,
-                                                  increasing_range=False)
 
     table_name_list = [f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1d",
                        f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1h"]
@@ -48,6 +41,15 @@ def main():
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
 
+    interval = "100d"
+    iterate_start = datetime(day=25, month=8, year=2018)
+    iterate_end = datetime(day=18, month=11, year=2018)
+    time_interval_iterator = TimeIntervalIterator(iterate_start,
+                                                  iterate_end,
+                                                  interval,
+                                                  forward_in_time=False,
+                                                  increasing_range=False)
+
     gather_items = Gather(
         sqlite_access_creator,
         data_source_general,
@@ -68,7 +70,9 @@ def main():
     gather_items.store_potential_coins_pickled(
         pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
                                            "database" /
-                                           f"potential_coins_overall.db"))
+                                           f"potential_coins_overall.db")),
+        narrowed_start_time=datetime(day=25, month=8, year=2018),
+        narrowed_end_time=datetime(day=25, month=10, year=2018)
     )
 
 
