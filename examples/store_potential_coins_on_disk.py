@@ -42,10 +42,8 @@ def main():
     success_iterators = ManualSuccessIterators()
 
     interval = "1h"
-    iterate_start = datetime(day=25, month=8, year=2018)
-    iterate_end = datetime(day=18, month=11, year=2020)
-    time_interval_iterator = TimeIntervalIterator(iterate_start,
-                                                  iterate_end,
+    time_interval_iterator = TimeIntervalIterator(overall_start,
+                                                  overall_end,
                                                   interval,
                                                   forward_in_time=False,
                                                   increasing_range=False)
@@ -67,12 +65,12 @@ def main():
         ],
         target_iterators=["percentage_of_bought_coins_hit_target"]
     )
-    narrowed_start = datetime(day=27, month=12, year=2018)
+    narrowed_start = datetime(day=30, month=12, year=2018)
     narrowed_end = datetime(day=31, month=12, year=2018)
     gather_items.store_potential_coins_pickled(
         pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
                                            "database" /
-                                           f"{interval}_{narrowed_start.timestamp()}_{narrowed_start.timestamp()}_potential_coins_overall.db")),
+                                           f"{interval}_{narrowed_start}_{narrowed_start}_potential_coins_overall.db")),
         narrowed_start_time=narrowed_start,
         narrowed_end_time=narrowed_end
     )

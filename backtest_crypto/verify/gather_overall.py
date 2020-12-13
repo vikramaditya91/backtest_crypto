@@ -34,7 +34,6 @@ class Gather:
         self.source_iterators = source_iterators
         self.target_iterators = target_iterators
         self.time_interval_coordinate = "time_intervals"
-        self.dataset_values = self.initialize_dataset()
 
     def get_coords_for_dataset(self):
         coordinates = [(self.time_interval_coordinate,
@@ -64,10 +63,16 @@ class Gather:
             yield coordinate
 
     def yield_items_from_dataset(self):
+        self.dataset_values = self.initialize_dataset()
         for coordinate in self.yield_coordinates_to_fill(self.dataset_values):
             yield self.dataset_values.loc[{k: v for k, v in zip(
                 self.dataset_values.coords, coordinate
             )}]
+
+    def yield_tuple_strategy(self):
+        coordinates = self.get_coords_for_dataset()
+        for item in itertools.product(*(dict(coordinates).values())):
+            yield item
 
     def get_simulation_arguments(self,
                                  coords):
@@ -101,11 +106,11 @@ class Gather:
 
     def obtain_potential(self,
                          potential_coin_client,
-                         coords,
+                         coordinate_dict,
                          potential_start,
                          potential_end):
-        potential_coin_strategy = dict(low_cutoff=coords.low_cutoff.values.tolist(),
-                                       high_cutoff=coords.high_cutoff.values.tolist(),
+        potential_coin_strategy = dict(low_cutoff=coordinate_dict["low_cutoff"],
+                                       high_cutoff=coordinate_dict["high_cutoff"],
                                        reference_coin=self.reference_coin,
                                        ohlcv_field=self.ohlcv_field)
         consider_history = (potential_start, potential_end)
@@ -123,20 +128,18 @@ class Gather:
                                                     CryptoOversoldCreator(),
                                                     data_source,
                                                     )
-        for coords in self.yield_items_from_dataset():
-            string_start_end = coords.time_intervals.values.tolist()
-            if not isinstance(string_start_end, str):
-                logger.warning("Something has gone horribly wrong. The string is not okay."
-                               f"Vikra. Check what happened for {string_start_end}")
-                continue
+        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
+        for tuple_strategy in self.yield_tuple_strategy():
+            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
+            string_start_end = coordinate_dict["time_intervals"]
 
             history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                coords.time_intervals.values.tolist()
+                string_start_end
             )
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
                     self.obtain_potential(potential_coin_client,
-                                          coords,
+                                          coordinate_dict,
                                           history_start,
                                           history_end)
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()

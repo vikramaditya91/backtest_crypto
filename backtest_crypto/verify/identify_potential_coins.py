@@ -1,21 +1,29 @@
 from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from datetime import timedelta
 
 import pandas as pd
-from crypto_history.utilities.general_utilities import Borg
 from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, \
     identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
 
 from backtest_crypto.history_collect.gather_history import get_simplified_history
-from backtest_crypto.utilities.general import InsufficientHistory
-from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.utilities.data_structs import time_interval_iterator_to_pd_multiindex
+from backtest_crypto.utilities.general import InsufficientHistory
 
 logger = logging.getLogger(__name__)
+
+
+class PotentialNamedTuple:
+    @staticmethod
+    def get_tuple_instance(**potential_coin_strategy):
+        potential_coin = namedtuple('PotentialCoin',
+                                    list(potential_coin_strategy.keys())
+                                    )
+        return potential_coin(**potential_coin_strategy)
 
 
 class PotentialCoinClient:
@@ -30,7 +38,7 @@ class PotentialCoinClient:
         if hasattr(self, "time_interval_iterator"):
             if time_interval_iterator != self.time_interval_iterator:
                 raise NotImplementedError("Time interval iterator should be "
-                                      "the same values as i was stored on the Borg")
+                                          "the same values as i was stored on the Borg")
         if not self._shared_state:
             self.multi_index_df = self.initialize_series(time_interval_iterator)
             self.time_interval_iterator = time_interval_iterator
@@ -40,7 +48,7 @@ class PotentialCoinClient:
     def initialize_series(self,
                           time_interval_iterator):
         return pd.DataFrame(index=time_interval_iterator_to_pd_multiindex(time_interval_iterator),
-                            columns=["all","potential"])
+                            columns=["all", "potential"])
 
     def does_potential_coin_exist_in_object(self,
                                             history_start,
@@ -55,7 +63,7 @@ class PotentialCoinClient:
 
     @staticmethod
     def filter_potential(original_dict,
-                         **potential_coin_strategy,
+                         potential_coin_strategy,
                          ):
         higher_cutoff = potential_coin_strategy["high_cutoff"]
         lower_cutoff = potential_coin_strategy["low_cutoff"]
@@ -65,17 +73,17 @@ class PotentialCoinClient:
                                        history_start,
                                        history_end,
                                        potential_coin,
-                                       **potential_coin_strategy):
+                                       potential_coin_strategy):
         if pd.isnull(
-            self.multi_index_df["all"][history_start, history_end]
+                self.multi_index_df["all"][history_start, history_end]
         ):
             self.update_potential_value_for_all_coins(history_start,
-                                                                       history_end,
-                                                                       **potential_coin_strategy)
+                                                      history_end,
+                                                      potential_coin_strategy)
         all_coins_dict = self.multi_index_df["all"][history_start, history_end][0]
 
         dict_of_potential_coins = self.filter_potential(all_coins_dict,
-                                                        **potential_coin_strategy)
+                                                        potential_coin_strategy)
 
         if isinstance(self.multi_index_df["potential"][history_start, history_end], list):
             self.multi_index_df["potential"][history_start, history_end][0].update(
@@ -85,47 +93,39 @@ class PotentialCoinClient:
             self.multi_index_df["potential"][history_start, history_end] = [
                 {potential_coin: dict_of_potential_coins}]
 
-    def get_tuple_instance(self,
-                           **potential_coin_strategy):
-        potential_coin = namedtuple('PotentialCoin',
-                                    list(potential_coin_strategy.keys())
-                                    )
-        return  potential_coin(**potential_coin_strategy)
-
     def get_potential_coin_at(self,
                               consider_history,
                               potential_coin_strategy,
                               ):
 
-        instance_potential_strategy = self.get_tuple_instance(**potential_coin_strategy)
+        instance_potential_strategy = PotentialNamedTuple.get_tuple_instance(**potential_coin_strategy)
         history_start, history_end = consider_history
         if not self.does_potential_coin_exist_in_object(history_start,
-                                                    history_end,
-                                                    instance_potential_strategy):
+                                                        history_end,
+                                                        instance_potential_strategy):
             self.update_potential_coin_location(history_start,
                                                 history_end,
                                                 instance_potential_strategy,
-                                                **potential_coin_strategy)
+                                                potential_coin_strategy)
         return self.multi_index_df["potential"][history_start, history_end][0][instance_potential_strategy]
 
     def get_complete_potential_coins_all_combinations(self):
         return self.multi_index_df["all"]
 
-
     def update_potential_value_for_all_coins(self,
                                              start_time,
                                              end_time,
-                                             **potential_coin_strategy):
+                                             potential_coin_strategy):
         self.multi_index_df["all"][start_time, end_time] = [
             self.get_dictionary_of_all_coins_fresh(start_time,
                                                    end_time,
-                                                   **potential_coin_strategy)
+                                                   potential_coin_strategy)
         ]
 
     def get_dictionary_of_all_coins_fresh(self,
                                           start_time,
                                           end_time,
-                                          **potential_coin_strategy):
+                                          potential_coin_strategy):
         return self.potential_calc_creator.get_dict_of_all_coins(
             self.data_source_general,
             self.data_source_specific,
@@ -141,17 +141,17 @@ class AbstractIdentifyCreator(ABC):
         raise NotImplementedError
 
     def get_dict_of_all_coins(self,
-                                data_source_general,
-                                data_source_specific,
-                                history_start,
-                                history_end,
-                                potential_coin_strategy,
-                                ):
+                              data_source_general,
+                              data_source_specific,
+                              history_start,
+                              history_end,
+                              potential_coin_strategy,
+                              ):
         concrete = self.factory_method(data_source_general,
                                        data_source_specific)
         return concrete.get_potential_dict_of_all_coins(history_start,
-                                                           history_end,
-                                                           potential_coin_strategy)
+                                                        history_end,
+                                                        potential_coin_strategy)
 
 
 class CryptoOversoldCreator(AbstractIdentifyCreator):
@@ -232,9 +232,8 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
         normalize_against_tickers_instance = normalize_by_all_tickers.NormalizeAgainstTickers()
         dataset_normalized_coins = normalize_against_tickers_instance. \
             normalize_against_other_coins(
-                normalized_by_weight,
-                to_normalize=(normalized_field,)
-            )
+            normalized_by_weight,
+            to_normalize=(normalized_field,)
+        )
         return identify_oversold.IdentifyOversold.get_last_timestamp_values(dataset_normalized_coins,
                                                                             normalized_field)
-
