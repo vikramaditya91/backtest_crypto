@@ -74,10 +74,10 @@ class TimeIntervalIterator:
     def get_list_time_intervals_str(self,
                                     delimiter="_"):
         time_intervals = self.time_intervals
-        return list(map(
+        return list(set(map(
             lambda x: f"{int(x[0].timestamp()*1000)}{delimiter}{int(x[1].timestamp()*1000)}", time_intervals
             )
-        )
+        ))
 
     @staticmethod
     def get_datetime_objects_from_str(timestamps_separated,

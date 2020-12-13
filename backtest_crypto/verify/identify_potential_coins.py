@@ -66,8 +66,6 @@ class PotentialCoinClient:
                                        history_end,
                                        potential_coin,
                                        **potential_coin_strategy):
-        instance_potential_strategy = self.get_tuple_instance(**potential_coin_strategy)
-
         if pd.isnull(
             self.multi_index_df["all"][history_start, history_end]
         ):
@@ -112,6 +110,7 @@ class PotentialCoinClient:
 
     def get_complete_potential_coins_all_combinations(self):
         return self.multi_index_df["all"]
+
 
     def update_potential_value_for_all_coins(self,
                                              start_time,

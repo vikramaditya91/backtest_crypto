@@ -133,11 +133,12 @@ class Gather:
             history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
-            if (narrowed_start_time >= history_start) and (narrowed_end_time <= history_end):
-                self.obtain_potential(potential_coin_client,
-                                      coords,
-                                      history_start,
-                                      history_end)
+            if narrowed_end_time >= history_end:
+                if history_end >= narrowed_start_time:
+                    self.obtain_potential(potential_coin_client,
+                                          coords,
+                                          history_start,
+                                          history_end)
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
         pandas_series.to_pickle(pickled_file_path)
 
