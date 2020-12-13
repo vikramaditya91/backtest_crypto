@@ -5,6 +5,7 @@ from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, \
     PotentialCoinClient
 from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
+from backtest_crypto.utilities.general import InsufficientHistory
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +139,13 @@ class Gather:
             )
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
-                    self.obtain_potential(potential_coin_client,
-                                          coordinate_dict,
-                                          history_start,
-                                          history_end)
+                    try:
+                        self.obtain_potential(potential_coin_client,
+                                              coordinate_dict,
+                                              history_start,
+                                              history_end)
+                    except InsufficientHistory:
+                        logger.warning(f"Insufficient history for {history_start} to {history_end}")
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
         pandas_series.to_pickle(pickled_file_path)
 
