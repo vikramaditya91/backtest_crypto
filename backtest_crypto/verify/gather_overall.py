@@ -1,20 +1,18 @@
 import itertools
 import logging
+
 import xarray as xr
+
+from backtest_crypto.utilities.general import InsufficientHistory
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, \
     PotentialCoinClient
 from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
-from backtest_crypto.utilities.general import InsufficientHistory
-from backtest_crypto.utilities.data_structs import coordinates_to_dict
 
 logger = logging.getLogger(__name__)
 
 
-class Gather:
-    """
-    Collects the various time-stamps, gets potential coins and simulates them
-    """
+class GatherGeneral:
     def __init__(self,
                  data_accessor,
                  data_source_general,
@@ -36,8 +34,6 @@ class Gather:
         self.source_iterators = source_iterators
         self.target_iterators = target_iterators
         self.time_interval_coordinate = "time_intervals"
-        # TODO The intialization of potential coin to disk does not need this?
-        self.gathered_dataset = self.initialize_dataset()
 
     def get_coords_for_dataset(self):
         coordinates = [(self.time_interval_coordinate,
@@ -47,65 +43,6 @@ class Gather:
         for source in self.source_iterators:
             coordinates.append((source.__name__, source()))
         return coordinates
-
-    def initialize_dataarray(self):
-        return xr.DataArray(None, coords=self.get_coords_for_dataset())
-
-    def initialize_dataset(self):
-        nan_da = self.initialize_dataarray()
-        dataset = xr.Dataset(dict(map(lambda data_var: (data_var, nan_da), self.target_iterators)))
-        for data_variable in dataset:
-            dataset[data_variable] = dataset[data_variable].copy()
-        return dataset
-
-    def yield_coordinates_to_fill(self,
-                                  ds: xr.Dataset):
-        indexes = ds.indexes
-        for coordinate in itertools.product(
-                *(indexes[coord] for coord in ds.coords)
-        ):
-            yield coordinate
-
-    def yield_coordinate_of_dataset(self):
-        for coordinate in self.yield_coordinates_to_fill(self.gathered_dataset):
-            yield self.gathered_dataset.loc[{k: v for k, v in zip(
-                self.gathered_dataset.coords, coordinate
-            )}]
-
-    def yield_tuple_strategy(self):
-        coordinates = self.get_coords_for_dataset()
-        for item in itertools.product(*(dict(coordinates).values())):
-            yield item
-
-    def get_simulation_arguments(self,
-                                 coords):
-        success_dict = {}
-        for item in self.success_iterators:
-            if item.__name__ == "days_to_run":
-                success_dict["days_to_run"] = TimeIntervalIterator.numpy_dt_to_timedelta(
-                    coords["days_to_run"].values
-                )
-            else:
-                success_dict[item.__name__] = coords[item.__name__].values.tolist()
-        return success_dict
-
-    def simulate_success(self,
-                         coords,
-                         potential_coins,
-                         potential_end,
-                         simulation_timedelta):
-        simulation_arguments = self.get_simulation_arguments(coords)
-        success_dict = validate_success(MarketBuyLimitSellCreator(),
-                                        self.data_accessor,
-                                        potential_coins,
-                                        potential_end,
-                                        simulation_timedelta=simulation_timedelta,
-                                        success_criteria=self.target_iterators,
-                                        ohlcv_field=self.ohlcv_field,
-                                        **simulation_arguments)
-
-        self.set_success_in_dataset(success_dict,
-                                    coords)
 
     def obtain_potential(self,
                          potential_coin_client,
@@ -122,6 +59,13 @@ class Gather:
             potential_coin_strategy=potential_coin_strategy,
         )
 
+    def yield_tuple_strategy(self):
+        coordinates = self.get_coords_for_dataset()
+        for item in itertools.product(*(dict(coordinates).values())):
+            yield item
+
+
+class GatherPotential(GatherGeneral):
     def store_potential_coins_pickled(self,
                                       narrowed_start_time,
                                       narrowed_end_time,
@@ -151,7 +95,59 @@ class Gather:
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
         pandas_series.to_pickle(pickled_file_path)
 
+
+class GatherSuccess(GatherGeneral):
+    """
+    Collects the various time-stamps, gets potential coins and simulates them
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(GatherSuccess, self).__init__(*args, **kwargs)
+        # TODO The intialization of potential coin to disk does not need this?
+        self.gathered_dataset = self.initialize_success_dataset()
+
+    def initialize_success_dataarray(self):
+        return xr.DataArray(None, coords=self.get_coords_for_dataset())
+
+    def initialize_success_dataset(self):
+        nan_da = self.initialize_success_dataarray()
+        dataset = xr.Dataset(dict(map(lambda data_var: (data_var, nan_da), self.target_iterators)))
+        for data_variable in dataset:
+            dataset[data_variable] = dataset[data_variable].copy()
+        return dataset
+
+    def get_simulation_arguments(self,
+                                 coords):
+        success_dict = {}
+        for item in self.success_iterators:
+            if item.__name__ == "days_to_run":
+                success_dict["days_to_run"] = TimeIntervalIterator.numpy_dt_to_timedelta(
+                    coords["days_to_run"].values
+                )
+            else:
+                success_dict[item.__name__] = coords[item.__name__].values.tolist()
+        return success_dict
+
+    def set_success_with_calc(self,
+                              simulation_input_dict,
+                              potential_coins,
+                              potential_end,
+                              simulation_timedelta):
+        success_dict = validate_success(MarketBuyLimitSellCreator(),
+                                        self.data_accessor,
+                                        potential_coins,
+                                        potential_end,
+                                        simulation_timedelta=simulation_timedelta,
+                                        success_criteria=self.target_iterators,
+                                        ohlcv_field=self.ohlcv_field,
+                                        **simulation_input_dict)
+
+        self.set_success_in_dataset(success_dict,
+                                    simulation_input_dict)
+
     def overall_success_calculator(self,
+                                   narrowed_start_time,
+                                   narrowed_end_time,
                                    loaded_potential_coins=None):
         data_source = (self.data_source_general, self.data_source_specific)
         potential_coin_client = PotentialCoinClient(
@@ -161,29 +157,32 @@ class Gather:
             loaded_potential_coins,
         )
 
+        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
 
-        for coords in self.yield_coordinate_of_dataset():
+        for tuple_strategy in self.yield_tuple_strategy():
+            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
+            string_start_end = coordinate_dict["time_intervals"]
+
             history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                coords.time_intervals.values.tolist()
+                string_start_end
             )
-            coord_dict = coordinates_to_dict(coords)
+            if narrowed_end_time >= history_end:
+                if history_end >= narrowed_start_time:
+                    potential_coins = self.obtain_potential(potential_coin_client,
+                                                            coordinate_dict,
+                                                            history_start,
+                                                            history_end)
 
-            potential_coins = self.obtain_potential(potential_coin_client,
-                                                    coord_dict,
-                                                    history_start,
-                                                    history_end)
-
-            simulation_timedelta = TimeIntervalIterator.numpy_dt_to_timedelta(coords.days_to_run.values)
-
-            self.simulate_success(coords,
-                                  potential_coins,
-                                  history_end,
-                                  simulation_timedelta)
+                    simulation_timedelta = coordinate_dict["days_to_run"]
+                    self.set_success_with_calc(coordinate_dict,
+                                               potential_coins,
+                                               history_end,
+                                               simulation_timedelta)
 
         return self.gathered_dataset
 
     def set_success_in_dataset(self,
                                success_dict,
-                               coordinates):
+                               success_input_dict):
         for success_criteria, success in success_dict.items():
-            self.gathered_dataset[success_criteria].loc[coordinates.coords] = success
+            self.gathered_dataset[success_criteria].loc[success_input_dict] = success

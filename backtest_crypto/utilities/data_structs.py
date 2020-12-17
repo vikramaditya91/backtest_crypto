@@ -15,8 +15,3 @@ def time_interval_iterator_to_pd_multiindex(
                                        list(set(end_list))],
                                       names=['start_time',
                                              'end_time'])
-
-
-def coordinates_to_dict(dataset: xr.Dataset) -> Dict:
-    coords = dataset.to_dict()["coords"]
-    return dict(map(lambda x: (x[0], x[1]["data"]), coords.items()))

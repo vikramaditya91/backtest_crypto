@@ -5,10 +5,9 @@ from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
 import logging
-import pathlib
 import pickle
 import pathlib
-from backtest_crypto.verify.gather_overall import Gather
+from backtest_crypto.verify.gather_overall import GatherSuccess
 
 
 def main():
@@ -47,7 +46,7 @@ def main():
 
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
-    gather_items = Gather(
+    gather_items = GatherSuccess(
                           sqlite_access_creator,
                           data_source_general,
                           data_source_specific,
@@ -69,8 +68,16 @@ def main():
     pickled_potential_path = pathlib.Path(
         pathlib.Path(__file__).parents[2] / "database" / "potential_coins" / "1h_2018_to_2020_potential_coins"
     )
-    collective_ds = gather_items.overall_success_calculator(loaded_potential_coins=pickled_potential_path)
-    with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}_hourly"), "wb") as fp:
+
+    narrowed_start = datetime(day=25, month=8, year=2018)
+    narrowed_end = datetime(day=17, month=11, year=2020)
+
+    collective_ds = gather_items.overall_success_calculator(narrowed_start,
+                                                            narrowed_end,
+                                                            loaded_potential_coins=pickled_potential_path)
+    with open(pathlib.Path(pathlib.Path(__file__).parents[1] /
+                           "database" /
+                           f"success_results_{interval}_{narrowed_start}_{narrowed_end}"), "wb") as fp:
         pickle.dump(collective_ds, fp)
 
 
