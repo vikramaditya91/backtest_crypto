@@ -18,8 +18,8 @@ class AbstractSimulationCreator(ABC):
                           simulation_timedelta,
                           success_criteria,
                           ohlcv_field,
-                          *args,
-                          **kwargs):
+                          simulation_input_dict,
+                          ):
         criteria = {}
         try:
             concrete = self.factory_method(history_access,
@@ -30,7 +30,7 @@ class AbstractSimulationCreator(ABC):
             for item in success_criteria:
                 if concrete.confirm_check_valid():
                     method = getattr(concrete, item)
-                    criteria[item] = method(*args, **kwargs)
+                    criteria[item] = method(simulation_input_dict)
                 else:
                     criteria[item] = None
         except InsufficientHistory:
@@ -147,13 +147,13 @@ def validate_success(creator: AbstractSimulationCreator,
                      simulation_timedelta,
                      success_criteria,
                      ohlcv_field,
-                     *args,
-                     **kwargs):
+                     simulation_input_dict,
+                     ):
     return creator.validate_instance(history_access,
                                      potential_coins,
                                      predicted_at,
                                      simulation_timedelta,
                                      success_criteria,
                                      ohlcv_field,
-                                     *args,
-                                     **kwargs)
+                                     simulation_input_dict,
+                                     )

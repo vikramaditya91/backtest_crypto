@@ -140,7 +140,8 @@ class GatherSuccess(GatherGeneral):
                                         simulation_timedelta=simulation_timedelta,
                                         success_criteria=self.target_iterators,
                                         ohlcv_field=self.ohlcv_field,
-                                        **simulation_input_dict)
+                                        simulation_input_dict=simulation_input_dict
+                                        )
 
         self.set_success_in_dataset(success_dict,
                                     simulation_input_dict)
