@@ -7,6 +7,7 @@ from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
 import logging
 import pathlib
 import pickle
+import pathlib
 from backtest_crypto.verify.gather_overall import Gather
 
 
@@ -65,7 +66,10 @@ def main():
                                             "end_of_run_value_of_bought_coins_if_not_sold",
                                             "end_of_run_value_of_bought_coins_if_sold_on_target"]
     )
-    collective_ds = gather_items.overall_success_calculator()
+    pickled_potential_path = pathlib.Path(
+        pathlib.Path(__file__).parents[2] / "database" / "potential_coins" / "1h_2018_to_2020_potential_coins"
+    )
+    collective_ds = gather_items.overall_success_calculator(loaded_potential_coins=pickled_potential_path)
     with open(pathlib.Path(pathlib.Path(__file__).parents[1] / "database" / f"coin_3d_iter_results_{interval}_hourly"), "wb") as fp:
         pickle.dump(collective_ds, fp)
 

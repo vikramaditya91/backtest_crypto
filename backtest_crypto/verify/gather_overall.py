@@ -6,6 +6,7 @@ from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreato
     PotentialCoinClient
 from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
 from backtest_crypto.utilities.general import InsufficientHistory
+from backtest_crypto.utilities.data_structs import coordinates_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -149,20 +150,32 @@ class Gather:
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
         pandas_series.to_pickle(pickled_file_path)
 
-    def overall_success_calculator(self):
+    def overall_success_calculator(self,
+                                   loaded_potential_coins=None):
+        data_source = (self.data_source_general, self.data_source_specific)
+        potential_coin_client = PotentialCoinClient(
+            self.time_interval_iterator,
+            CryptoOversoldCreator(),
+            data_source,
+            loaded_potential_coins,
+        )
+
         for coords in self.yield_items_from_dataset():
-            potential_start, potential_end = self.time_interval_iterator.get_datetime_objects_from_str(
+            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
-            potential_coins = self.obtain_potential(coords,
-                                                    potential_start,
-                                                    potential_end)
+            coord_dict = coordinates_to_dict(coords)
+
+            potential_coins = self.obtain_potential(potential_coin_client,
+                                                    coord_dict,
+                                                    history_start,
+                                                    history_end)
 
             simulation_timedelta = TimeIntervalIterator.numpy_dt_to_timedelta(coords.days_to_run.values)
 
             self.simulate_success(coords,
                                   potential_coins,
-                                  potential_end,
+                                  history_end,
                                   simulation_timedelta)
 
         return self.dataset_values
