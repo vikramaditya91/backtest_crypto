@@ -36,6 +36,8 @@ class Gather:
         self.source_iterators = source_iterators
         self.target_iterators = target_iterators
         self.time_interval_coordinate = "time_intervals"
+        # TODO The intialization of potential coin to disk does not need this?
+        self.gathered_dataset = self.initialize_dataset()
 
     def get_coords_for_dataset(self):
         coordinates = [(self.time_interval_coordinate,
@@ -64,11 +66,10 @@ class Gather:
         ):
             yield coordinate
 
-    def yield_items_from_dataset(self):
-        self.dataset_values = self.initialize_dataset()
-        for coordinate in self.yield_coordinates_to_fill(self.dataset_values):
-            yield self.dataset_values.loc[{k: v for k, v in zip(
-                self.dataset_values.coords, coordinate
+    def yield_coordinate_of_dataset(self):
+        for coordinate in self.yield_coordinates_to_fill(self.gathered_dataset):
+            yield self.gathered_dataset.loc[{k: v for k, v in zip(
+                self.gathered_dataset.coords, coordinate
             )}]
 
     def yield_tuple_strategy(self):
@@ -160,7 +161,8 @@ class Gather:
             loaded_potential_coins,
         )
 
-        for coords in self.yield_items_from_dataset():
+
+        for coords in self.yield_coordinate_of_dataset():
             history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 coords.time_intervals.values.tolist()
             )
@@ -178,10 +180,10 @@ class Gather:
                                   history_end,
                                   simulation_timedelta)
 
-        return self.dataset_values
+        return self.gathered_dataset
 
     def set_success_in_dataset(self,
                                success_dict,
                                coordinates):
         for success_criteria, success in success_dict.items():
-            self.dataset_values[success_criteria].loc[coordinates.coords] = success
+            self.gathered_dataset[success_criteria].loc[coordinates.coords] = success

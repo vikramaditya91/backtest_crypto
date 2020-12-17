@@ -74,6 +74,8 @@ class TimeIntervalIterator:
     def get_list_time_intervals_str(self,
                                     delimiter="_"):
         time_intervals = self.time_intervals
+        # Made set because there could be multiple coordinates with the same values.
+        # Should probably be fixed in a better way
         return list(set(map(
             lambda x: f"{int(x[0].timestamp()*1000)}{delimiter}{int(x[1].timestamp()*1000)}", time_intervals
             )
