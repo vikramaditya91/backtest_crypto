@@ -169,16 +169,20 @@ class GatherSuccess(GatherGeneral):
             )
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
-                    potential_coins = self.obtain_potential(potential_coin_client,
-                                                            coordinate_dict,
-                                                            history_start,
-                                                            history_end)
+                    try:
+                        potential_coins = self.obtain_potential(potential_coin_client,
+                                                                coordinate_dict,
+                                                                history_start,
+                                                                history_end)
 
-                    simulation_timedelta = coordinate_dict["days_to_run"]
-                    self.set_success_with_calc(coordinate_dict,
-                                               potential_coins,
-                                               history_end,
-                                               simulation_timedelta)
+                        simulation_timedelta = coordinate_dict["days_to_run"]
+                        self.set_success_with_calc(coordinate_dict,
+                                                   potential_coins,
+                                                   history_end,
+                                                   simulation_timedelta)
+                    except InsufficientHistory:
+                        logger.warning(f"Insufficient history for {history_start} "
+                                       f"to {history_end}")
 
         return self.gathered_dataset
 
