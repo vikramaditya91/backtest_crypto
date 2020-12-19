@@ -11,7 +11,7 @@ from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, \
     identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
 
-from backtest_crypto.history_collect.gather_history import get_simplified_history
+from backtest_crypto.history_collect.gather_history import get_merged_history
 from backtest_crypto.utilities.data_structs import time_interval_iterator_to_pd_multiindex
 from backtest_crypto.utilities.general import InsufficientHistory
 
@@ -201,11 +201,11 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                            potential_coin_strategy):
         access_creator = class_builders.get("access_xarray").get(self.data_source_general)()
 
-        available_da = get_simplified_history(access_creator,
-                                              history_start,
-                                              history_end,
-                                              backward_details=((timedelta(days=0), -timedelta(days=2), "1h"),),
-                                              remaining="1d")
+        available_da = get_merged_history(access_creator,
+                                          history_start,
+                                          history_end,
+                                          backward_details=((timedelta(days=0), -timedelta(days=2), "1h"),),
+                                          remaining="1d")
 
         if available_da.timestamp.__len__() == 0:
             raise InsufficientHistory
@@ -218,14 +218,16 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                     timestamp_drop_fraction=0.5,
                                     coin_drop_fraction=0.975)
 
-        pre_processed_da = pre_processed_instance.perform_cleaning_operations(available_da,
-                                                                              cleaners=["remove_futures",
-                                                                                        "type_convert_datarray",
-                                                                                        "entire_na_column_removal",
-                                                                                        "remove_coins_with_missing_data",
-                                                                                        "drop_coins_ending_latest_nan",
-                                                                                        "remove_largely_invalid_ts",
-                                                                                        "remove_null_rows_absolute"])
+        pre_processed_da = pre_processed_instance.perform_cleaning_operations(
+            available_da,
+            cleaners=["remove_futures",
+                      "type_convert_datarray",
+                      "entire_na_column_removal",
+                      "remove_coins_with_missing_data",
+                      "drop_coins_ending_latest_nan",
+                      "remove_largely_invalid_ts",
+                      "remove_null_rows_absolute"]
+        )
         logger.debug(f"The dataarray in the unmasked history has been pre-processed for {history_start} {history_end}")
 
         candle_independent_instance = candle_independent.CandleIndependence. \
@@ -243,8 +245,8 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
         normalize_against_tickers_instance = normalize_by_all_tickers.NormalizeAgainstTickers()
         dataset_normalized_coins = normalize_against_tickers_instance. \
             normalize_against_other_coins(
-            normalized_by_weight,
-            to_normalize=(normalized_field,)
-        )
+                normalized_by_weight,
+                to_normalize=(normalized_field,)
+            )
         return identify_oversold.IdentifyOversold.get_last_timestamp_values(dataset_normalized_coins,
                                                                             normalized_field)

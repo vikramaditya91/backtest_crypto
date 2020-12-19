@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 
-from backtest_crypto.history_collect.gather_history import get_simplified_history
+from backtest_crypto.history_collect.gather_history import get_simple_history
 from backtest_crypto.utilities.general import InsufficientHistory
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class AbstractSimulatorConcrete(ABC):
 
     def __init__(self,
                  history_access,
-                 potential_coins,
+                 potential_coins_dict,
                  predicted_at,
                  simulation_timedelta,
                  ohlcv_field
@@ -56,18 +56,18 @@ class AbstractSimulatorConcrete(ABC):
         self.__dict__ = self._shared_state
         if not self._shared_state:
             self.overall_history_dict = {}
+            self.maximum_history_dict = {}
         self.ohlcv_field = ohlcv_field
-        self.potential_coins = potential_coins
+        self.potential_coins_list = list(potential_coins_dict.keys())
         self.predicted_at = predicted_at
         self.simulation_timedelta = simulation_timedelta
 
         if not (predicted_at, simulation_timedelta) in self.overall_history_dict.keys():
-            future = get_simplified_history(history_access,
-                                            start_time=predicted_at,
-                                            end_time=predicted_at + simulation_timedelta,
-                                            backward_details=(),
-                                            remaining="1h"
-                                            )
+            future = get_simple_history(history_access,
+                                        start_time=predicted_at,
+                                        end_time=predicted_at + simulation_timedelta,
+                                        candle="1h"
+                                        )
             self.overall_history_dict[(predicted_at, simulation_timedelta)] = future.fillna(0)
         self.history_future = self.overall_history_dict[(predicted_at, simulation_timedelta)]
 
@@ -84,7 +84,7 @@ class AbstractSimulatorConcrete(ABC):
         pass
 
     def confirm_check_valid(self):
-        if not self.potential_coins:
+        if not self.potential_coins_list:
             return False
         if self.history_future.timestamp.__len__() == 0:
             return False
@@ -93,9 +93,10 @@ class AbstractSimulatorConcrete(ABC):
 
 class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
     def percentage_of_bought_coins_hit_target(self,
-                                              percentage_increase,
-                                              days_to_run):
-        relevant_coins = self.history_future.sel(base_assets=self.potential_coins,
+                                              simulation_input_dict,
+                                              ):
+        percentage_increase = simulation_input_dict["percentage_increase"]
+        relevant_coins = self.history_future.sel(base_assets=self.potential_coins_list,
                                                  ohlcv_fields=[self.ohlcv_field])
         max_values = relevant_coins.max(axis=2)
         current_values = relevant_coins.loc[{"timestamp": relevant_coins.timestamp[0]}]
@@ -103,7 +104,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
         return sum(truth_values.values.flatten()) / truth_values.base_assets.__len__()
 
     def end_of_run_value_of_bought_coins_if_not_sold(self, *args, **kwargs):
-        relevant_coins = self.history_future.sel(base_assets=self.potential_coins,
+        relevant_coins = self.history_future.sel(base_assets=self.potential_coins_list,
                                                  ohlcv_fields=[self.ohlcv_field])
         current_values = relevant_coins.loc[{"timestamp": relevant_coins.timestamp[0]}]
         current_values = current_values.where(lambda x: x != 0, drop=True)
@@ -113,13 +114,16 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
         return sum((last_day_values * quantity_bought).values.flatten()) / len(relevant_coins.base_assets)
 
     def end_of_run_value_of_bought_coins_if_sold_on_target(self,
-                                                           percentage_increase,
-                                                           days_to_run):
-        relevant_coins = self.history_future.sel(base_assets=self.potential_coins,
+                                                           simulation_input_dict,
+                                                           ):
+        percentage_increase = simulation_input_dict["percentage_increase"]
+        relevant_coins = self.history_future.sel(base_assets=self.potential_coins_list,
                                                  ohlcv_fields=[self.ohlcv_field])
         current_values = relevant_coins.loc[{"timestamp": relevant_coins.timestamp[0]}]
         current_values = current_values.where(lambda x: x != 0, drop=True)
         valid_coins = current_values.base_assets.values.tolist()
+        if not valid_coins:
+            return 0
 
         relevant_coins = relevant_coins.sel(base_assets=valid_coins)
 
@@ -136,7 +140,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
             base_assets=unsuccessful_coins)
 
         total_value = (sum(sold_value.values.flatten()) + sum(unsold_value.values.flatten())) / \
-                      len(relevant_coins.base_assets)
+                        len(relevant_coins.base_assets)
         return total_value
 
 
