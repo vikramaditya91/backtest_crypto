@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import datetime
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -141,24 +142,16 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         return x_array_dict
 
     def select_history(self,
-                       start,
-                       end,
+                       start: datetime.datetime,
+                       end: datetime.datetime,
                        dataarray,
                        candle):
-        # TODO Remove debug lines
-        import time
-        first = time.time()
+        # TODO Potential for improvement here
         timestamp_list = self.get_timestamps(candle)
-        filtered_timestamps = list(filter(lambda x: start < x < end,
-                                          timestamp_list))
-        second = time.time()
+        starter = start.timestamp() * 1000
+        ender = end.timestamp() * 1000
+        filtered_timestamps = [item for item in timestamp_list if starter < item < ender]
         selected = dataarray.sel(timestamp=filtered_timestamps)
-        third = time.time()
-
-        if str(third)[-1] == "2":
-            logger.debug(f"List making took {second-first} seconds")
-            logger.debug(f"Selection took {third-second} seconds")
-
         return selected
 
     def get_merged_histories(self,
