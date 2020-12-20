@@ -62,8 +62,7 @@ def main():
                               success_iterators.days_to_run
                           ],
                           target_iterators=["percentage_of_bought_coins_hit_target",
-                                            "end_of_run_value_of_bought_coins_if_not_sold",
-                                            "end_of_run_value_of_bought_coins_if_sold_on_target"]
+                                            ]
     )
     pickled_potential_path = pathlib.Path(
         pathlib.Path(__file__).parents[2] / "database" / "potential_coins" / "1h_2018_to_2020_potential_coins"

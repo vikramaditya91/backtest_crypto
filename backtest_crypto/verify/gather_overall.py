@@ -8,6 +8,7 @@ from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, \
     PotentialCoinClient
 from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
+from backtest_crypto.utilities.general import MultiProcessPool
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class GatherPotential(GatherGeneral):
                                                     data_source,
                                                     )
         coordinate_keys = dict(self.get_coords_for_dataset()).keys()
+
         for tuple_strategy in self.yield_tuple_strategy():
             coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
             string_start_end = coordinate_dict["time_intervals"]
@@ -86,10 +88,11 @@ class GatherPotential(GatherGeneral):
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
                     try:
-                        self.obtain_potential(potential_coin_client,
-                                              coordinate_dict,
-                                              history_start,
-                                              history_end)
+                        multi_calc.apply_task(func=self.obtain_potential,
+                                              args=(potential_coin_client,
+                                                    coordinate_dict,
+                                                    history_start,
+                                                    history_end))
                     except InsufficientHistory:
                         logger.warning(f"Insufficient history for {history_start} to {history_end}")
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
@@ -128,23 +131,7 @@ class GatherSuccess(GatherGeneral):
                 success_dict[item.__name__] = coords[item.__name__].values.tolist()
         return success_dict
 
-    def set_success_with_calc(self,
-                              simulation_input_dict,
-                              potential_coins,
-                              potential_end,
-                              simulation_timedelta):
-        success_dict = validate_success(MarketBuyLimitSellCreator(),
-                                        self.data_accessor,
-                                        potential_coins,
-                                        potential_end,
-                                        simulation_timedelta=simulation_timedelta,
-                                        success_criteria=self.target_iterators,
-                                        ohlcv_field=self.ohlcv_field,
-                                        simulation_input_dict=simulation_input_dict
-                                        )
 
-        self.set_success_in_dataset(success_dict,
-                                    simulation_input_dict)
 
     def overall_success_calculator(self,
                                    narrowed_start_time,
@@ -160,45 +147,54 @@ class GatherSuccess(GatherGeneral):
 
         coordinate_keys = dict(self.get_coords_for_dataset()).keys()
 
-        # TODO Remove debug lines
-        count = 0
-        potential = 0
-        simulate = 0
-        for tuple_strategy in self.yield_tuple_strategy():
-            count += 1
-            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
-            string_start_end = coordinate_dict["time_intervals"]
+        with MultiProcessPool() as pool:
+            for tuple_strategy in self.yield_tuple_strategy():
+                coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
+                string_start_end = coordinate_dict["time_intervals"]
 
-            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                string_start_end
-            )
-            if narrowed_end_time >= history_end:
-                if history_end >= narrowed_start_time:
-                    try:
-                        import time
-                        first = time.time()
-                        potential_coins = self.obtain_potential(potential_coin_client,
-                                                                coordinate_dict,
-                                                                history_start,
-                                                                history_end)
-                        second = time.time()
-                        potential = potential + second -first
-                        simulation_timedelta = coordinate_dict["days_to_run"]
-                        self.set_success_with_calc(coordinate_dict,
-                                                   potential_coins,
-                                                   history_end,
-                                                   simulation_timedelta)
-                        third = time.time()
-                        simulate = simulate + third - second
+                history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                    string_start_end
+                )
+                if narrowed_end_time >= history_end:
+                    if history_end >= narrowed_start_time:
+                        try:
+                            potential_coins = self.obtain_potential(potential_coin_client,
+                                                                    coordinate_dict,
+                                                                    history_start,
+                                                                    history_end)
+                            simulation_timedelta = coordinate_dict["days_to_run"]
 
-                    except InsufficientHistory:
-                        logger.warning(f"Insufficient history for {history_start} "
-                                       f"to {history_end}")
-                    if count%2000 == 0:
-                        logger.info(f"Got potential coins in {potential/count}")
-                        logger.info(f"Got simulate coins in {simulate/count}")
+                            success_result = pool.apply_async_with_dill(func=validate_success,
+                                                            args=(MarketBuyLimitSellCreator(),
+                                                                  self.data_accessor,
+                                                                  potential_coins,
+                                                                  history_end,
+                                                                  simulation_timedelta,
+                                                                  self.target_iterators,
+                                                                  self.ohlcv_field,
+                                                                  coordinate_dict
+                                                                  )
+                                                            )
+
+                            # success_dict = validate_success(MarketBuyLimitSellCreator(),
+                            #                                 self.data_accessor,
+                            #                                 potential_coins,
+                            #                                 history_end,
+                            #                                 simulation_timedelta=simulation_timedelta,
+                            #                                 success_criteria=self.target_iterators,
+                            #                                 ohlcv_field=self.ohlcv_field,
+                            #                                 simulation_input_dict=coordinate_dict
+                            #                                 )
+
+                            self.set_success_in_dataset(success_result.get(),
+                                                        coordinate_dict)
+                        except InsufficientHistory:
+                            logger.warning(f"Insufficient history for {history_start} "
+                                           f"to {history_end}")
 
         return self.gathered_dataset
+
+
 
     def set_success_in_dataset(self,
                                success_dict,
