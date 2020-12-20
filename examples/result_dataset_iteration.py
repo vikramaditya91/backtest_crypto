@@ -42,7 +42,7 @@ def main():
                          ohlcv_field=ohlcv_field,
                          file_path=str(pathlib.Path(pathlib.Path(__file__).parents[2] /
                                                     "common_db" /
-                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.db")),
+                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.pickled")),
                          mapped_class=OversoldCoins,
                          table_name_list=table_name_list)
 
