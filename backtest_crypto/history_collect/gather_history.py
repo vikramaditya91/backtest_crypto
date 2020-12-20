@@ -19,9 +19,9 @@ class AbstractRawHistoryObtainCreator(ABC):
         """factory method to create the disk-writer"""
         pass
 
-    def store_largest_xarray_in_borg(self,
-                                     *args,
-                                     **kwargs):
+    def store_largest_xarray_in_singleton(self,
+                                          *args,
+                                          **kwargs):
         product = self.factory_method(*args, **kwargs)
         product.store_largest_da_on_borg(product.get_fresh_xarray())
 
@@ -198,12 +198,12 @@ def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
                          ohlcv_field,
                          *args,
                          **kwargs):
-    return creator.store_largest_xarray_in_borg(ohlcv_field,
-                                                overall_start,
-                                                overall_end,
-                                                candle,
-                                                *args,
-                                                **kwargs)
+    return creator.store_largest_xarray_in_singleton(ohlcv_field,
+                                                     overall_start,
+                                                     overall_end,
+                                                     candle,
+                                                     *args,
+                                                     **kwargs)
 
 
 def get_merged_history(creator: AbstractRawHistoryObtainCreator,
