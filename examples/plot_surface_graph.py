@@ -7,8 +7,8 @@ from backtest_crypto.graphics.plot_graph import show_graph, SurfaceGraph3DCreato
 
 
 def main():
-    pickle_file = path.join(pathlib.Path(pathlib.Path(__file__).parents[1] /
-                                         "database" /
+    pickle_file = path.join(pathlib.Path(pathlib.Path(__file__).parents[2] /
+                                         "common_db" /
                                          f"success_results_1d_25-Aug-2018_17-Nov-2020"))
     with open(pickle_file, "rb") as fp:
         simulated_dataset = pickle.load(fp)

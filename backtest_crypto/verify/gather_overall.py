@@ -64,7 +64,11 @@ class GatherGeneral:
         for key, values in coordinates:
             values.sort()
 
+        first_item = None
         for item in itertools.product(*(dict(coordinates).values())):
+            if first_item != item[0]:
+                logger.info(f"Updating the first item: {item[0]}")
+                first_item = item[0]
             yield item
 
 
@@ -195,8 +199,9 @@ class GatherSuccess(GatherGeneral):
                         simulate = simulate + third - second
 
                     except InsufficientHistory:
-                        logger.warning(f"Insufficient history for {history_start} "
-                                       f"to {history_end}")
+                        pass
+                        # logger.warning(f"Insufficient history for {history_start} "
+                        #                f"to {history_end}")
                     if count%2000 == 0:
                         logger.info(f"Got potential coins in {potential/count}")
                         logger.info(f"Got simulate coins in {simulate/count}")

@@ -1,12 +1,14 @@
-from datetime import datetime, timedelta
-from backtest_crypto.history_collect.gather_history import store_largest_xarray
+import logging
+import pathlib
+import pickle
+from datetime import datetime
+
 from crypto_history import class_builders, init_logger
 from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
+
+from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
-import logging
-import pickle
-import pathlib
 from backtest_crypto.verify.gather_overall import GatherSuccess
 
 
@@ -28,7 +30,7 @@ def main():
                                                   increasing_range=False)
 
     table_name_list = [f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1d",
-                   f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1h"]
+                       f"COIN_HISTORY_{ohlcv_field}_{reference_coin}_1h"]
 
     sqlite_access_creator = class_builders.get("access_xarray").get(data_source_general)()
 
@@ -38,8 +40,8 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
-                                                    "database" /
+                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[2] /
+                                                    "common_db" /
                                                     f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.db")),
                          mapped_class=OversoldCoins,
                          table_name_list=table_name_list)
@@ -47,33 +49,35 @@ def main():
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
     gather_items = GatherSuccess(
-                          sqlite_access_creator,
-                          data_source_general,
-                          data_source_specific,
-                          reference_coin,
-                          ohlcv_field,
-                          time_interval_iterator,
-                          source_iterators=[
-                              source_iterators.high_cutoff,
-                              source_iterators.low_cutoff
-                          ],
-                          success_iterators=[
-                              success_iterators.percentage_increase,
-                              success_iterators.days_to_run
-                          ],
-                          target_iterators=["percentage_of_bought_coins_hit_target",
-                                            "end_of_run_value_of_bought_coins_if_not_sold",
-                                            "end_of_run_value_of_bought_coins_if_sold_on_target"]
+        sqlite_access_creator,
+        data_source_general,
+        data_source_specific,
+        reference_coin,
+        ohlcv_field,
+        time_interval_iterator,
+        source_iterators=[
+            source_iterators.high_cutoff,
+            source_iterators.low_cutoff
+        ],
+        success_iterators=[
+            success_iterators.percentage_increase,
+            success_iterators.days_to_run
+        ],
+        target_iterators=["percentage_of_bought_coins_hit_target",
+                          "end_of_run_value_of_bought_coins_if_not_sold",
+                          "end_of_run_value_of_bought_coins_if_sold_on_target"]
     )
-    pickled_potential_path = "/home/vikramaditya/temp/t1/database/potential_coins/1h_2018_to_2020_potential_coins"
+    pickled_potential_path = str(pathlib.Path(pathlib.Path(__file__).parents[2] /
+                                              "common_db" /
+                                              f"1h_2018_to_2020_potential_coins.pickled"))
     narrowed_start = datetime(day=25, month=8, year=2018)
     narrowed_end = datetime(day=17, month=11, year=2020)
 
     collective_ds = gather_items.overall_success_calculator(narrowed_start,
                                                             narrowed_end,
                                                             loaded_potential_coins=pickled_potential_path)
-    with open(pathlib.Path(pathlib.Path(__file__).parents[1] /
-                           "database" /
+    with open(pathlib.Path(pathlib.Path(__file__).parents[2] /
+                           "common_db" /
                            f"success_results_{interval}_"
                            f"{narrowed_start.strftime('%d-%b-%Y')}_"
                            f"{narrowed_end.strftime('%d-%b-%Y')}"),
@@ -83,7 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
