@@ -103,8 +103,10 @@ class TimeIntervalIterator:
 
 class ManualSourceIterators:
     def high_cutoff(self):
-        # return [0.85]
-        return np.arange(0.6, 1.2, 0.05)
+        return [0.85]
+        return np.arange(0.6, 1.2, 0.2)
+
+        # return np.arange(0.6, 1.2, 0.05)
 
     def low_cutoff(self):
         return [0]
@@ -112,18 +114,19 @@ class ManualSourceIterators:
 
 class ManualSuccessIterators:
     def percentage_increase(self):
-        # return [0.025]
-        return np.arange(0.025, 0.1, 0.005)
+        return np.arange(0.025, 0.1, 0.05)
+
+        # return np.arange(0.025, 0.1, 0.005)
 
     def percentge_reduction(self):
         return [0]
 
     def days_to_run(self):
-        # return [timedelta(days=16)]
+        return [timedelta(days=16)]
         return [timedelta(days=12),
-                timedelta(days=16),
+                # timedelta(days=16),
                 timedelta(days=20),
-                timedelta(days=24),
+                # timedelta(days=24),
                 timedelta(days=28),
                 timedelta(days=32)]
 

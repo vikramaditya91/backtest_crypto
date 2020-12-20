@@ -61,6 +61,9 @@ class GatherGeneral:
 
     def yield_tuple_strategy(self):
         coordinates = self.get_coords_for_dataset()
+        for key, values in coordinates:
+            values.sort()
+
         for item in itertools.product(*(dict(coordinates).values())):
             yield item
 

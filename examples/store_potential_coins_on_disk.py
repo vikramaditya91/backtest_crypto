@@ -65,8 +65,8 @@ def main():
         ],
         target_iterators=["percentage_of_bought_coins_hit_target"]
     )
-    narrowed_start = datetime(day=30, month=12, year=2018)
-    narrowed_end = datetime(day=31, month=12, year=2018)
+    narrowed_start = datetime(day=1, month=7, year=2020)
+    narrowed_end = datetime(day=17, month=11, year=2020)
     gather_items.store_potential_coins_pickled(
         pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
                                            "database" /

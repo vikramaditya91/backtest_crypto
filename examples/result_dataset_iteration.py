@@ -17,7 +17,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "1h"
+    interval = "1d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -65,10 +65,7 @@ def main():
                                             "end_of_run_value_of_bought_coins_if_not_sold",
                                             "end_of_run_value_of_bought_coins_if_sold_on_target"]
     )
-    pickled_potential_path = pathlib.Path(
-        pathlib.Path(__file__).parents[2] / "database" / "potential_coins" / "1h_2018_to_2020_potential_coins"
-    )
-
+    pickled_potential_path = "/home/vikramaditya/temp/t1/database/potential_coins/1h_2018_to_2020_potential_coins"
     narrowed_start = datetime(day=25, month=8, year=2018)
     narrowed_end = datetime(day=17, month=11, year=2020)
 
@@ -77,7 +74,10 @@ def main():
                                                             loaded_potential_coins=pickled_potential_path)
     with open(pathlib.Path(pathlib.Path(__file__).parents[1] /
                            "database" /
-                           f"success_results_{interval}_{narrowed_start}_{narrowed_end}"), "wb") as fp:
+                           f"success_results_{interval}_"
+                           f"{narrowed_start.strftime('%d-%b-%Y')}_"
+                           f"{narrowed_end.strftime('%d-%b-%Y')}"),
+              "wb") as fp:
         pickle.dump(collective_ds, fp)
 
 
