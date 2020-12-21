@@ -167,12 +167,7 @@ class GatherSuccess(GatherGeneral):
 
         coordinate_keys = dict(self.get_coords_for_dataset()).keys()
 
-        # TODO Remove debug lines
-        count = 0
-        potential = 0
-        simulate = 0
         for tuple_strategy in self.yield_tuple_strategy():
-            count += 1
             coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
             string_start_end = coordinate_dict["time_intervals"]
 
@@ -182,30 +177,19 @@ class GatherSuccess(GatherGeneral):
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
                     try:
-                        import time
-                        first = time.time()
                         potential_coins = self.obtain_potential(potential_coin_client,
                                                                 coordinate_dict,
                                                                 history_start,
                                                                 history_end)
-                        second = time.time()
-                        potential = potential + second -first
                         simulation_timedelta = coordinate_dict["days_to_run"]
                         self.set_success_with_calc(coordinate_dict,
                                                    potential_coins,
                                                    history_end,
                                                    simulation_timedelta)
-                        third = time.time()
-                        simulate = simulate + third - second
-
                     except InsufficientHistory:
                         pass
                         # logger.warning(f"Insufficient history for {history_start} "
                         #                f"to {history_end}")
-                    if count%2000 == 0:
-                        logger.info(f"Got potential coins in {potential/count}")
-                        logger.info(f"Got simulate coins in {simulate/count}")
-
         return self.gathered_dataset
 
     def set_success_in_dataset(self,
