@@ -74,10 +74,12 @@ class TimeIntervalIterator:
     def get_list_time_intervals_str(self,
                                     delimiter="_"):
         time_intervals = self.time_intervals
-        return list(map(
+        # Made set because there could be multiple coordinates with the same values.
+        # Should probably be fixed in a better way
+        return list(set(map(
             lambda x: f"{int(x[0].timestamp()*1000)}{delimiter}{int(x[1].timestamp()*1000)}", time_intervals
             )
-        )
+        ))
 
     @staticmethod
     def get_datetime_objects_from_str(timestamps_separated,
@@ -92,11 +94,18 @@ class TimeIntervalIterator:
         _, end_list = zip(*time_intervals_datetime)
         return list(map(lambda x: x.timestamp(), end_list))
 
+    @staticmethod
+    def numpy_dt_to_timedelta(numpy_dt):
+        return timedelta(
+            seconds=int(numpy_dt / np.timedelta64(1, 's'))
+        )
+
 
 class ManualSourceIterators:
     def high_cutoff(self):
-        # return [0.85]
-        return np.arange(0.6, 1.2, 0.05)
+        return np.arange(0.6, 1.2, 0.2)
+
+        # return np.arange(0.6, 1.2, 0.05)
 
     def low_cutoff(self):
         return [0]
@@ -104,18 +113,16 @@ class ManualSourceIterators:
 
 class ManualSuccessIterators:
     def percentage_increase(self):
-        # return [0.025]
         return np.arange(0.025, 0.1, 0.005)
 
     def percentge_reduction(self):
         return [0]
 
     def days_to_run(self):
-        # return [timedelta(days=16)]
         return [timedelta(days=12),
-                timedelta(days=16),
+                # timedelta(days=16),
                 timedelta(days=20),
-                timedelta(days=24),
+                # timedelta(days=24),
                 timedelta(days=28),
                 timedelta(days=32)]
 
