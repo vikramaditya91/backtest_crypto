@@ -8,7 +8,7 @@ from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
-from backtest_crypto.verify.gather_overall import Gather
+from backtest_crypto.verify.gather_overall import GatherIndicator
 
 
 def main():
@@ -18,6 +18,10 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
+<<<<<<< HEAD
+=======
+    interval = "100d"
+>>>>>>> 63a0c58... Make changes to the simulation
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -41,6 +45,7 @@ def main():
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
 
+<<<<<<< HEAD
     interval = "1h"
     time_interval_iterator = TimeIntervalIterator(overall_start,
                                                   overall_end,
@@ -49,6 +54,9 @@ def main():
                                                   increasing_range=False)
 
     gather_items = Gather(
+=======
+    gather_items = GatherIndicator(
+>>>>>>> 63a0c58... Make changes to the simulation
         sqlite_access_creator,
         data_source_general,
         data_source_specific,

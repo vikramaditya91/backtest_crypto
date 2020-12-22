@@ -5,14 +5,15 @@ import xarray as xr
 
 from backtest_crypto.utilities.general import InsufficientHistory
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
-from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, \
-    PotentialCoinClient
-from backtest_crypto.verify.simulate_success import validate_success, MarketBuyLimitSellCreator
+from backtest_crypto.verify.identify_potential_coins import PotentialCoinClient
+from abc import ABC
+from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator
+from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator, MarketBuyLimitSellCreator
 
 logger = logging.getLogger(__name__)
 
 
-class GatherGeneral:
+class GatherAbstract(ABC):
     def __init__(self,
                  data_accessor,
                  data_source_general,
@@ -71,8 +72,10 @@ class GatherGeneral:
                 first_item = item[0]
             yield item
 
+class GatherSimulation(GatherAbstract):
+    pass
 
-class GatherPotential(GatherGeneral):
+class GatherPotential(GatherAbstract):
     def store_potential_coins_pickled(self,
                                       narrowed_start_time,
                                       narrowed_end_time,
@@ -103,13 +106,13 @@ class GatherPotential(GatherGeneral):
         pandas_series.to_pickle(pickled_file_path)
 
 
-class GatherSuccess(GatherGeneral):
+class GatherIndicator(GatherAbstract):
     """
     Collects the various time-stamps, gets potential coins and simulates them
     """
 
     def __init__(self, *args, **kwargs):
-        super(GatherSuccess, self).__init__(*args, **kwargs)
+        super(GatherIndicator, self).__init__(*args, **kwargs)
         # TODO The intialization of potential coin to disk does not need this?
         self.gathered_dataset = self.initialize_success_dataset()
 
@@ -135,12 +138,12 @@ class GatherSuccess(GatherGeneral):
                 success_dict[item.__name__] = coords[item.__name__].values.tolist()
         return success_dict
 
-    def set_success_with_calc(self,
+    def indicator_insert(self,
                               simulation_input_dict,
                               potential_coins,
                               potential_end,
                               simulation_timedelta):
-        success_dict = validate_success(MarketBuyLimitSellCreator(),
+        success_dict = calculate_indicator(MarketBuyLimitSellCreator(),
                                         self.data_accessor,
                                         potential_coins,
                                         potential_end,
@@ -150,10 +153,10 @@ class GatherSuccess(GatherGeneral):
                                         simulation_input_dict=simulation_input_dict
                                         )
 
-        self.set_success_in_dataset(success_dict,
+        self.set_indicator_in_dataset(success_dict,
                                     simulation_input_dict)
 
-    def overall_success_calculator(self,
+    def overall_individual_indicator_calculator(self,
                                    narrowed_start_time,
                                    narrowed_end_time,
                                    loaded_potential_coins=None):
@@ -164,13 +167,11 @@ class GatherSuccess(GatherGeneral):
             data_source,
             loaded_potential_coins,
         )
-
         coordinate_keys = dict(self.get_coords_for_dataset()).keys()
 
         for tuple_strategy in self.yield_tuple_strategy():
             coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
             string_start_end = coordinate_dict["time_intervals"]
-
             history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
                 string_start_end
             )
@@ -182,7 +183,7 @@ class GatherSuccess(GatherGeneral):
                                                                 history_start,
                                                                 history_end)
                         simulation_timedelta = coordinate_dict["days_to_run"]
-                        self.set_success_with_calc(coordinate_dict,
+                        self.indicator_insert(coordinate_dict,
                                                    potential_coins,
                                                    history_end,
                                                    simulation_timedelta)
@@ -192,7 +193,7 @@ class GatherSuccess(GatherGeneral):
                         #                f"to {history_end}")
         return self.gathered_dataset
 
-    def set_success_in_dataset(self,
+    def set_indicator_in_dataset(self,
                                success_dict,
                                success_input_dict):
         for success_criteria, success in success_dict.items():

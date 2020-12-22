@@ -7,7 +7,7 @@ from backtest_crypto.utilities.general import InsufficientHistory
 logger = logging.getLogger(__name__)
 
 
-class AbstractSimulationCreator(ABC):
+class AbstractPredictionCreator(ABC):
     def factory_method(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -38,12 +38,12 @@ class AbstractSimulationCreator(ABC):
         return criteria
 
 
-class MarketBuyLimitSellCreator(AbstractSimulationCreator):
+class MarketBuyLimitSellCreator(AbstractPredictionCreator):
     def factory_method(self, *args, **kwargs):
-        return MarketBuyLimitSellSimulatorConcrete(*args, **kwargs)
+        return MarketBuyLimitSellPredictorConcrete(*args, **kwargs)
 
 
-class AbstractSimulatorConcrete(ABC):
+class AbstractPredictorConcrete(ABC):
     _shared_state = {}
 
     def __init__(self,
@@ -91,7 +91,7 @@ class AbstractSimulatorConcrete(ABC):
         return True
 
 
-class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
+class MarketBuyLimitSellPredictorConcrete(AbstractPredictorConcrete):
     def percentage_of_bought_coins_hit_target(self,
                                               simulation_input_dict,
                                               ):
@@ -144,15 +144,15 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractSimulatorConcrete):
         return total_value
 
 
-def validate_success(creator: AbstractSimulationCreator,
-                     history_access,
-                     potential_coins,
-                     predicted_at,
-                     simulation_timedelta,
-                     success_criteria,
-                     ohlcv_field,
-                     simulation_input_dict,
-                     ):
+def calculate_indicator(creator: AbstractPredictionCreator,
+                        history_access,
+                        potential_coins,
+                        predicted_at,
+                        simulation_timedelta,
+                        success_criteria,
+                        ohlcv_field,
+                        simulation_input_dict,
+                        ):
     return creator.validate_instance(history_access,
                                      potential_coins,
                                      predicted_at,

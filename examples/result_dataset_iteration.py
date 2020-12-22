@@ -9,7 +9,7 @@ from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
-from backtest_crypto.verify.gather_overall import GatherSuccess
+from backtest_crypto.verify.gather_overall import GatherIndicator
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "7d"
+    interval = "47d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -48,7 +48,7 @@ def main():
 
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
-    gather_items = GatherSuccess(
+    gather_items = GatherIndicator(
         sqlite_access_creator,
         data_source_general,
         data_source_specific,
@@ -73,7 +73,7 @@ def main():
     narrowed_start = datetime(day=25, month=8, year=2018)
     narrowed_end = datetime(day=17, month=11, year=2020)
 
-    collective_ds = gather_items.overall_success_calculator(narrowed_start,
+    collective_ds = gather_items.overall_individual_indicator_calculator(narrowed_start,
                                                             narrowed_end,
                                                             loaded_potential_coins=pickled_potential_path)
     with open(pathlib.Path(pathlib.Path(__file__).parents[2] /
