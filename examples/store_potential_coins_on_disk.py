@@ -8,7 +8,7 @@ from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
-from backtest_crypto.verify.gather_overall import GatherPotential
+from backtest_crypto.verify import gather_overall
 
 
 def main():
@@ -33,40 +33,44 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
-                                                    "database" /
-                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.db")),
+                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[2] /
+                                                    "common_db" /
+                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.pickled")),
                          mapped_class=OversoldCoins,
                          table_name_list=table_name_list)
 
     source_iterators = ManualSourceIterators()
-    success_iterators = ManualSuccessIterators()
 
-    interval = "1h"
+    interval = "50d"
     time_interval_iterator = TimeIntervalIterator(overall_start,
                                                   overall_end,
                                                   interval,
                                                   forward_in_time=False,
                                                   increasing_range=False)
 
-    gather_items = GatherPotential(
+    iterators = {"time": time_interval_iterator,
+                 "source": [
+                     source_iterators.high_cutoff,
+                     source_iterators.low_cutoff
+                 ],
+                 "success": [
+                 ],
+                 "target": [
+                ],
+                 "strategy": [
+
+                 ]
+                }
+
+    gather_items = gather_overall.GatherPotential(
         sqlite_access_creator,
-        data_source_general,
-        data_source_specific,
+        (data_source_general, data_source_specific),
         reference_coin,
         ohlcv_field,
-        time_interval_iterator,
-        source_iterators=[
-            source_iterators.high_cutoff,
-            source_iterators.low_cutoff
-        ],
-        success_iterators=[
-            success_iterators.percentage_increase,
-            success_iterators.days_to_run
-        ],
-        target_iterators=["percentage_of_bought_coins_hit_target"]
+        iterators
     )
-    narrowed_start = datetime(day=1, month=7, year=2020)
+
+    narrowed_start = datetime(day=1, month=7, year=2018)
     narrowed_end = datetime(day=17, month=11, year=2020)
     gather_items.store_potential_coins_pickled(
         pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /

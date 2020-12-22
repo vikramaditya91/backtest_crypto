@@ -4,12 +4,13 @@ import datetime
 from os import path
 import numpy as np
 from backtest_crypto.graphics.plot_graph import show_graph, SurfaceGraph3DCreator
+from backtest_crypto.verify.individual_indicator_calculator import MarketBuyLimitSellIndicatorCreator
 
 
 def main():
     pickle_file = path.join(pathlib.Path(pathlib.Path(__file__).parents[2] /
                                          "common_db" /
-                                         f"success_results_7d_25-Aug-2018_17-Nov-2020"))
+                                         f"success_results_470d_25-Aug-2018_17-Nov-2020"))
     with open(pickle_file, "rb") as fp:
         simulated_dataset = pickle.load(fp)
     simulated_dataset = simulated_dataset.sel(time_intervals=simulated_dataset.time_intervals[20:-20])
@@ -27,7 +28,8 @@ def main():
                    # "percentage_increase": 0.035,
                    # "days_to_run": np.timedelta64(datetime.timedelta(days=20)),
                    "high_cutoff": 1,
-                   "low_cutoff": 0}
+                   "low_cutoff": 0,
+               "strategy": MarketBuyLimitSellIndicatorCreator}
                )
 
 

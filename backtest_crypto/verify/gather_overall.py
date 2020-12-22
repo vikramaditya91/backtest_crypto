@@ -1,14 +1,14 @@
 import itertools
 import logging
+from abc import ABC, abstractmethod
 
 import xarray as xr
 
 from backtest_crypto.utilities.general import InsufficientHistory
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
-from backtest_crypto.verify.identify_potential_coins import PotentialCoinClient
-from abc import ABC
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator
-from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator, MarketBuyLimitSellCreator
+from backtest_crypto.verify.identify_potential_coins import PotentialCoinClient
+from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator
 
 logger = logging.getLogger(__name__)
 
@@ -16,34 +16,24 @@ logger = logging.getLogger(__name__)
 class GatherAbstract(ABC):
     def __init__(self,
                  data_accessor,
-                 data_source_general,
-                 data_source_specific,
+                 data_source,
                  reference_coin,
                  ohlcv_field,
-                 time_interval_iterator,
-                 source_iterators,
-                 success_iterators,
-                 target_iterators,
+                 iterators,
                  ):
         self.data_accessor = data_accessor
-        self.data_source_general = data_source_general
-        self.data_source_specific = data_source_specific
+        self.data_source_general, self.data_source_specific = data_source
         self.reference_coin = reference_coin
         self.ohlcv_field = ohlcv_field
-        self.time_interval_iterator = time_interval_iterator
-        self.success_iterators = success_iterators
-        self.source_iterators = source_iterators
-        self.target_iterators = target_iterators
-        self.time_interval_coordinate = "time_intervals"
+        self.time_interval_iterator = iterators["time"]
+        self.success_iterators = iterators["success"]
+        self.source_iterators = iterators["source"]
+        self.target_iterators = iterators["target"]
+        self.strategy_iterators = iterators["strategy"]
 
+    @abstractmethod
     def get_coords_for_dataset(self):
-        coordinates = [(self.time_interval_coordinate,
-                        self.time_interval_iterator.get_list_time_intervals_str())]
-        for success in self.success_iterators:
-            coordinates.append((success.__name__, success()))
-        for source in self.source_iterators:
-            coordinates.append((source.__name__, source()))
-        return coordinates
+        pass
 
     def obtain_potential(self,
                          potential_coin_client,
@@ -72,10 +62,26 @@ class GatherAbstract(ABC):
                 first_item = item[0]
             yield item
 
-class GatherSimulation(GatherAbstract):
-    pass
+    def initialize_success_dataarray(self):
+        return xr.DataArray(None, coords=self.get_coords_for_dataset())
+
+    def initialize_success_dataset(self):
+        nan_da = self.initialize_success_dataarray()
+        dataset = xr.Dataset(dict(map(lambda data_var: (data_var, nan_da), self.target_iterators)))
+        for data_variable in dataset:
+            dataset[data_variable] = dataset[data_variable].copy()
+        return dataset
+
 
 class GatherPotential(GatherAbstract):
+    def get_coords_for_dataset(self):
+        coordinates = [("time_intervals", self.time_interval_iterator.get_list_time_intervals_str())]
+        for success in self.success_iterators:
+            coordinates.append((success.__name__, success()))
+        for source in self.source_iterators:
+            coordinates.append((source.__name__, source()))
+        return coordinates
+
     def store_potential_coins_pickled(self,
                                       narrowed_start_time,
                                       narrowed_end_time,
@@ -106,6 +112,22 @@ class GatherPotential(GatherAbstract):
         pandas_series.to_pickle(pickled_file_path)
 
 
+class GatherSimulation(GatherAbstract):
+    def __init__(self, *args, **kwargs):
+        super(GatherSimulation, self).__init__(*args, **kwargs)
+        # TODO The intialization of potential coin to disk does not need this?
+        self.gathered_dataset = self.initialize_success_dataset()
+
+    def get_coords_for_dataset(self):
+        coordinates = [("time_intervals", self.time_interval_iterator.get_list_time_intervals_str()),
+                       ("strategy", list(strategy for strategy in self.strategy_iterators))]
+        for success in self.success_iterators:
+            coordinates.append((success.__name__, success()))
+        for source in self.source_iterators:
+            coordinates.append((source.__name__, source()))
+        return coordinates
+
+
 class GatherIndicator(GatherAbstract):
     """
     Collects the various time-stamps, gets potential coins and simulates them
@@ -116,15 +138,14 @@ class GatherIndicator(GatherAbstract):
         # TODO The intialization of potential coin to disk does not need this?
         self.gathered_dataset = self.initialize_success_dataset()
 
-    def initialize_success_dataarray(self):
-        return xr.DataArray(None, coords=self.get_coords_for_dataset())
-
-    def initialize_success_dataset(self):
-        nan_da = self.initialize_success_dataarray()
-        dataset = xr.Dataset(dict(map(lambda data_var: (data_var, nan_da), self.target_iterators)))
-        for data_variable in dataset:
-            dataset[data_variable] = dataset[data_variable].copy()
-        return dataset
+    def get_coords_for_dataset(self):
+        coordinates = [("time_intervals", self.time_interval_iterator.get_list_time_intervals_str()),
+                       ("strategy", list(strategy for strategy in self.strategy_iterators))]
+        for success in self.success_iterators:
+            coordinates.append((success.__name__, success()))
+        for source in self.source_iterators:
+            coordinates.append((source.__name__, source()))
+        return coordinates
 
     def get_simulation_arguments(self,
                                  coords):
@@ -139,27 +160,28 @@ class GatherIndicator(GatherAbstract):
         return success_dict
 
     def indicator_insert(self,
-                              simulation_input_dict,
-                              potential_coins,
-                              potential_end,
-                              simulation_timedelta):
-        success_dict = calculate_indicator(MarketBuyLimitSellCreator(),
-                                        self.data_accessor,
-                                        potential_coins,
-                                        potential_end,
-                                        simulation_timedelta=simulation_timedelta,
-                                        success_criteria=self.target_iterators,
-                                        ohlcv_field=self.ohlcv_field,
-                                        simulation_input_dict=simulation_input_dict
-                                        )
+                         simulation_input_dict,
+                         potential_coins,
+                         potential_end,
+                         simulation_timedelta):
+        strategy = simulation_input_dict.pop("strategy")()
+        success_dict = calculate_indicator(strategy,
+                                           self.data_accessor,
+                                           potential_coins,
+                                           potential_end,
+                                           simulation_timedelta=simulation_timedelta,
+                                           success_criteria=self.target_iterators,
+                                           ohlcv_field=self.ohlcv_field,
+                                           simulation_input_dict=simulation_input_dict
+                                           )
 
         self.set_indicator_in_dataset(success_dict,
-                                    simulation_input_dict)
+                                      simulation_input_dict)
 
     def overall_individual_indicator_calculator(self,
-                                   narrowed_start_time,
-                                   narrowed_end_time,
-                                   loaded_potential_coins=None):
+                                                narrowed_start_time,
+                                                narrowed_end_time,
+                                                loaded_potential_coins=None):
         data_source = (self.data_source_general, self.data_source_specific)
         potential_coin_client = PotentialCoinClient(
             self.time_interval_iterator,
@@ -184,9 +206,9 @@ class GatherIndicator(GatherAbstract):
                                                                 history_end)
                         simulation_timedelta = coordinate_dict["days_to_run"]
                         self.indicator_insert(coordinate_dict,
-                                                   potential_coins,
-                                                   history_end,
-                                                   simulation_timedelta)
+                                              potential_coins,
+                                              history_end,
+                                              simulation_timedelta)
                     except InsufficientHistory:
                         pass
                         # logger.warning(f"Insufficient history for {history_start} "
@@ -194,7 +216,7 @@ class GatherIndicator(GatherAbstract):
         return self.gathered_dataset
 
     def set_indicator_in_dataset(self,
-                               success_dict,
-                               success_input_dict):
+                                 success_dict,
+                                 success_input_dict):
         for success_criteria, success in success_dict.items():
             self.gathered_dataset[success_criteria].loc[success_input_dict] = success

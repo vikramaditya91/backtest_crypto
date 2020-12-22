@@ -78,7 +78,10 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                        standard_other_dict):
         assert len(data_vars) == 1, f"Should have only 1 data_vars to plot"
         assert len(surface_graph_axes) == 2, f"Should have only 2 axes"
-        values_to_plot = self.simulation_dataset[data_vars[0]].sel(standard_other_dict,
+        simulation_dataset = self.simulation_dataset.sel(
+            {"strategy": standard_other_dict.pop("strategy")}
+        )
+        values_to_plot = simulation_dataset[data_vars[0]].sel(standard_other_dict,
                                                                    tolerance=0.01,
                                                                    method="nearest")
         x_axis, y_axis = self.get_x_y_axis(surface_graph_axes,

@@ -7,7 +7,7 @@ from backtest_crypto.utilities.general import InsufficientHistory
 logger = logging.getLogger(__name__)
 
 
-class AbstractPredictionCreator(ABC):
+class AbstractIndicatorCreator(ABC):
     def factory_method(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -38,12 +38,12 @@ class AbstractPredictionCreator(ABC):
         return criteria
 
 
-class MarketBuyLimitSellCreator(AbstractPredictionCreator):
+class MarketBuyLimitSellIndicatorCreator(AbstractIndicatorCreator):
     def factory_method(self, *args, **kwargs):
-        return MarketBuyLimitSellPredictorConcrete(*args, **kwargs)
+        return MarketBuyLimitSellIndicatorConcrete(*args, **kwargs)
 
 
-class AbstractPredictorConcrete(ABC):
+class AbstractIndicatorConcrete(ABC):
     _shared_state = {}
 
     def __init__(self,
@@ -91,7 +91,7 @@ class AbstractPredictorConcrete(ABC):
         return True
 
 
-class MarketBuyLimitSellPredictorConcrete(AbstractPredictorConcrete):
+class MarketBuyLimitSellIndicatorConcrete(AbstractIndicatorConcrete):
     def percentage_of_bought_coins_hit_target(self,
                                               simulation_input_dict,
                                               ):
@@ -144,7 +144,7 @@ class MarketBuyLimitSellPredictorConcrete(AbstractPredictorConcrete):
         return total_value
 
 
-def calculate_indicator(creator: AbstractPredictionCreator,
+def calculate_indicator(creator: AbstractIndicatorCreator,
                         history_access,
                         potential_coins,
                         predicted_at,

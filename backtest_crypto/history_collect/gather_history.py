@@ -146,6 +146,12 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                        end: datetime.datetime,
                        dataarray,
                        candle):
+
+        if start > end:
+            temp_end = end
+            end = start
+            start = temp_end
+            logger.warning("Switching start and end in select history as start is after end")
         # TODO Potential for improvement here
         timestamp_list = self.get_timestamps(candle)
         starter = start.timestamp() * 1000
