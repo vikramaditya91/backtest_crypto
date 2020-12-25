@@ -9,6 +9,7 @@ from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator
 from backtest_crypto.verify.identify_potential_coins import PotentialCoinClient
 from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator
+from backtest_crypto.verify.simulate_timesteps import calculate_simulation
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,59 @@ class GatherSimulation(GatherAbstract):
         for source in self.source_iterators:
             coordinates.append((source.__name__, source()))
         return coordinates
+
+    def simulation_calculator(self,
+                              narrowed_start_time,
+                              narrowed_end_time,
+                              loaded_potential_coins):
+        data_source = (self.data_source_general, self.data_source_specific)
+        potential_coin_client = PotentialCoinClient(
+            self.time_interval_iterator,
+            CryptoOversoldCreator(),
+            data_source,
+            loaded_potential_coins,
+        )
+        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
+
+        for tuple_strategy in self.yield_tuple_strategy():
+            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
+            string_start_end = coordinate_dict["time_intervals"]
+            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                string_start_end
+            )
+            if narrowed_end_time >= history_end:
+                if history_end >= narrowed_start_time:
+                    try:
+                        self.simulate_timestep(coordinate_dict,
+                                               potential_coin_client)
+                    except InsufficientHistory as e:
+                        # pass
+                        logger.warning(f"Insufficient history for {history_start} "
+                                       f"to {history_end}. Reason {e}")
+        return self.gathered_dataset
+
+    def simulate_timestep(self,
+                          simulation_input_dict,
+                          potential_coin_client
+                          ):
+        strategy = simulation_input_dict.pop("strategy")()
+        simulate_result_dict = calculate_simulation(strategy,
+                                                self.data_accessor,
+                                                ohlcv_field=self.ohlcv_field,
+                                                simulation_input_dict=simulation_input_dict,
+                                                potential_coin_client=potential_coin_client,
+                                                simulate_criteria=self.target_iterators,
+                                                )
+
+        self.set_simulator_in_dataset(simulate_result_dict,
+                                      simulation_input_dict)
+
+    def set_simulator_in_dataset(self,
+                                 simulate_result_dict,
+                                 success_input_dict
+                                 ):
+        for simulate_criterion, success in simulate_result_dict.items():
+            self.gathered_dataset[simulate_criterion].loc[success_input_dict] = success
 
 
 class GatherIndicator(GatherAbstract):

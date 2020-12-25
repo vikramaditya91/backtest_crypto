@@ -66,6 +66,7 @@ class AbstractIndicatorConcrete(ABC):
             future = get_simple_history(history_access,
                                         start_time=predicted_at,
                                         end_time=predicted_at + simulation_timedelta,
+                                        # TODO This should be parametrized
                                         candle="1h"
                                         )
             self.overall_history_dict[(predicted_at, simulation_timedelta)] = future.fillna(0)

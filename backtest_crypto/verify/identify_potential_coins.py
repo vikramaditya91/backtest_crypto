@@ -37,27 +37,30 @@ class PotentialCoinClient:
                  pickled_potential_coin_path=None
                  ):
         self.__dict__ = self._shared_state
-        if hasattr(self, "time_interval_iterator"):
-            if time_interval_iterator != self.time_interval_iterator:
-                raise NotImplementedError("Time interval iterator should be "
-                                          "the same values as i was stored on the Borg")
+        # if hasattr(self, "time_interval_iterator"):
+        #     if time_interval_iterator != self.time_interval_iterator:
+        #         raise NotImplementedError("Time interval iterator should be "
+        #                                   "the same values as i was stored on the Borg")
         if not self._shared_state:
-            self.multi_index_df = self.initialize_series(time_interval_iterator)
-            self.time_interval_iterator = time_interval_iterator
             if pickled_potential_coin_path is not None:
-                self.load_pickled_potential_coins_to_df(pickled_potential_coin_path)
+                self.multi_index_df = self.load_pickled_potential_coins_to_df(
+                    pickled_potential_coin_path
+                )
+            else:
+                self.multi_index_df = self.initialize_series(time_interval_iterator)
         self.potential_calc_creator = potential_calc_creator
         self.data_source_general, self.data_source_specific = data_source
 
-    def load_pickled_potential_coins_to_df(self,
-                                           pickled_potential_coins):
+    @staticmethod
+    def load_pickled_potential_coins_to_df(pickled_potential_coins):
         with open(pickled_potential_coins, "rb") as fp:
             pickled_coins = pickle.load(fp)
-        self.multi_index_df["all"][self.multi_index_df["all"].isnull()] = pickled_coins
-        self.multi_index_df["all"] = self.multi_index_df["all"].sort_index()
+        df = pd.DataFrame(pickled_coins)
+        df["potential"] = None
+        return df
 
-    def initialize_series(self,
-                          time_interval_iterator):
+    @staticmethod
+    def initialize_series(time_interval_iterator):
         return pd.DataFrame(index=time_interval_iterator_to_pd_multiindex(time_interval_iterator),
                             columns=["all", "potential"])
 

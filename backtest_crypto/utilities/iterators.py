@@ -30,12 +30,16 @@ class TimeIntervalIterator:
             self._time_intervals = self.get_time_intervals_list()
         return self._time_intervals
 
-    @staticmethod
-    def init_interval(interval):
+    def init_interval(self,
+                      interval):
         if isinstance(interval, str):
-            datetime_operations = DateTimeOperations()
-            interval = datetime_operations.map_string_to_timedelta(interval)
+            interval = self.string_to_datetime(interval)
         return interval
+
+    @staticmethod
+    def string_to_datetime(interval: str):
+        datetime_operations = DateTimeOperations()
+        return datetime_operations.map_string_to_timedelta(interval)
 
     @staticmethod
     def init_current_start_end(start_time,
@@ -100,31 +104,45 @@ class TimeIntervalIterator:
             seconds=int(numpy_dt / np.timedelta64(1, 's'))
         )
 
+    @staticmethod
+    def time_iterator(start_time: datetime,
+                      end_time: datetime,
+                      interval: timedelta):
+        for n in range(int((end_time - start_time)/interval)):
+            yield start_time + (interval * n)
+
 
 class ManualSourceIterators:
     def high_cutoff(self):
-        return np.arange(0.6, 1.2, 0.2)
+        return [0.7]
+        # return np.arange(0.6, 1.2, 0.5)
 
         # return np.arange(0.6, 1.2, 0.05)
 
     def low_cutoff(self):
         return [0]
 
+    def max_coins_to_buy(self):
+        return [4]
+
 
 class ManualSuccessIterators:
     def percentage_increase(self):
-        return np.arange(0.025, 0.1, 0.005)
+        return [0.025]
+        # return np.arange(0.025, 0.1, 0.05)
 
     def percentge_reduction(self):
         return [0]
 
     def days_to_run(self):
-        return [timedelta(days=12),
+        return [
+            timedelta(days=12),
                 # timedelta(days=16),
-                timedelta(days=20),
+                # timedelta(days=20),
                 # timedelta(days=24),
-                timedelta(days=28),
-                timedelta(days=32)]
+                # timedelta(days=28),
+                # timedelta(days=32)
+        ]
 
 
 class Targets:
