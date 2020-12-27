@@ -1,19 +1,23 @@
 from __future__ import annotations
-import logging
+
 import datetime
-import xarray as xr
-import pandas as pd
-import numpy as np
+import logging
 from abc import ABC, abstractmethod
-from sqlalchemy import create_engine
-from backtest_crypto.utilities.general import Singleton, InsufficientHistory
+
+import numpy as np
+import pandas as pd
+import xarray as xr
 from crypto_history.utilities.general_utilities import register_factory
+from sqlalchemy import create_engine
+
+from backtest_crypto.utilities.general import Singleton, InsufficientHistory
 
 logger = logging.getLogger(__package__)
 
 
 class AbstractRawHistoryObtainCreator(ABC):
     """Abstract disk-writer creator"""
+
     @abstractmethod
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         """factory method to create the disk-writer"""
@@ -47,6 +51,7 @@ class AbstractRawHistoryObtainCreator(ABC):
 @register_factory(section="access_xarray", identifier="sqlite")
 class SQLiteCoinHistoryCreator(AbstractRawHistoryObtainCreator):
     """SQLite creator"""
+
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         return ConcreteSQLiteCoinHistoryAccess(*args, **kwargs)
 
@@ -131,7 +136,7 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
     def df_to_xarray(self,
                      candle,
                      df):
-        underlying_np = np.array([[df.values,np.full(df.shape, candle)]])
+        underlying_np = np.array([[df.values, np.full(df.shape, candle)]])
         return xr.DataArray(underlying_np,
                             dims=["reference_assets",
                                   "ohlcv_fields",
@@ -211,7 +216,7 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                                   candle):
         da = self.largest_xarray_dict[candle]
         try:
-            instant_history = da.sel(timestamp=current_time.timestamp()*1000)
+            instant_history = da.sel(timestamp=current_time.timestamp() * 1000)
         except KeyError:
             raise InsufficientHistory(f"History not present in {current_time}")
         da = instant_history.dropna("base_assets")

@@ -41,13 +41,12 @@ class PotentialCoinClient:
         #     if time_interval_iterator != self.time_interval_iterator:
         #         raise NotImplementedError("Time interval iterator should be "
         #                                   "the same values as i was stored on the Borg")
+        if pickled_potential_coin_path is not None:
+            self.multi_index_df = self.load_pickled_potential_coins_to_df(
+                pickled_potential_coin_path
+            )
         if not self._shared_state:
-            if pickled_potential_coin_path is not None:
-                self.multi_index_df = self.load_pickled_potential_coins_to_df(
-                    pickled_potential_coin_path
-                )
-            else:
-                self.multi_index_df = self.initialize_series(time_interval_iterator)
+            self.multi_index_df = self.initialize_series(time_interval_iterator)
         self.potential_calc_creator = potential_calc_creator
         self.data_source_general, self.data_source_specific = data_source
 

@@ -1,14 +1,15 @@
-import logging
 import datetime
+import functools
+import logging
 import math
 import random
-import functools
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Dict
+
 from backtest_crypto.history_collect.gather_history import get_instantaneous_history
-from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.utilities.general import InsufficientHistory
+from backtest_crypto.utilities.iterators import TimeIntervalIterator
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
         self.candle = "1h"
         self.tolerance = 0.001
         self.trade_executed = 0
-        self.banned_coins = {"NPXS", "DENT", "KEY", "NCASH", "MFT"}
+        self.banned_coins = {"NPXS", "DENT", "KEY", "NCASH", "MFT", "PHX", "STORM"}
 
     @abstractmethod
     def calculate_end_of_run_value(self, *args, **kwargs):
@@ -118,24 +119,33 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
         )]
         for simulation_at in TimeIntervalIterator.time_iterator(simulation_start,
                                                                 simulation_end,
-                                                                interval=TimeIntervalIterator.string_to_datetime(self.candle)):
+                                                                interval=TimeIntervalIterator.string_to_datetime(
+                                                                    self.candle)):
             if not ((len(holdings) == 1) and (holdings[0].coin_name == self.reference_coin)):
                 holdings = self.sell_altcoins_that_hit_target(holdings,
-                                                         simulation_at,
-                                                             simulation_input_dict)
+                                                              simulation_at,
+                                                              simulation_input_dict)
             if self.should_buy_altcoin(holdings):
                 try:
                     potential_coins = self.obtain_potential(self.potential_coin_client,
-                                                         coordinate_dict=simulation_input_dict,
-                                                         potential_start=simulation_start,
-                                                         potential_end=simulation_at)
+                                                            coordinate_dict=simulation_input_dict,
+                                                            potential_start=simulation_start,
+                                                            potential_end=simulation_at)
                 except KeyError as e:
+                    # logger.debug(f"Potential coins not found for {simulation_start} to {simulation_at}."
+                    #              "Skipping this simulation timestep")
                     continue
-
                 holdings = self.buy_altcoin_from_reference_coin_overall(simulation_at,
-                                                                       holdings,
-                                                                       potential_coins,
-                                                                       simulation_input_dict["max_coins_to_buy"], )
+                                                                   holdings,
+                                                                   potential_coins,
+                                                                   simulation_input_dict["max_coins_to_buy"], )
+            try:
+                if (simulation_at.day % 5) == 0 and (simulation_at.hour == 1):
+                    logger.debug(f"Holdings are worth"
+                                 f" {self.get_total_holding_worth(holdings, simulation_at)} "
+                                 f"at {simulation_at}")
+            except InsufficientHistory as e:
+                pass
         return self.get_total_holding_worth(holdings,
                                             simulation_end)
 
@@ -143,15 +153,14 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
                                 holding,
                                 current_time):
         instant_price_da = get_instantaneous_history(self.history_access,
-                                                  current_time,
-                                                  candle=self.candle
-                                                  )
+                                                     current_time,
+                                                     candle=self.candle
+                                                     )
         instant_price_da[self.reference_coin] = 1
         total_holding = functools.reduce(
             lambda x, y: x + y.quantity * instant_price_da[y.coin_name],
             holding, 0)
         return total_holding
-
 
     def has_holding_reached_timeout(self,
                                     holding: HoldingCoin,
@@ -159,7 +168,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
                                     days_to_run: datetime.timedelta):
         if holding.coin_name == self.reference_coin:
             return False
-        return (holding.bought_time + days_to_run) > current_time
+        return (holding.bought_time + days_to_run) < current_time
 
     def has_holding_reached_target_price(self,
                                          holding: HoldingCoin,
@@ -171,14 +180,14 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
                (instant_price_dict[holding.coin_name])
 
     def sell_altcoins_that_hit_target(self,
-                               holdings,
+                                      holdings,
                                       current_time,
                                       simulation_input_dict):
         try:
             instance_price_dict = get_instantaneous_history(self.history_access,
-                                                      current_time,
-                                                      candle=self.candle
-                                                      )
+                                                            current_time,
+                                                            candle=self.candle
+                                                            )
         except InsufficientHistory as e:
             logger.debug(f"History not present in {current_time}")
         else:
@@ -186,7 +195,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
             for holding in holdings_copy:
                 if self.has_holding_reached_timeout(holding,
                                                     current_time,
-                                                    simulation_input_dict["days_to_run"]) or\
+                                                    simulation_input_dict["days_to_run"]) or \
                         self.has_holding_reached_target_price(holding,
                                                               instance_price_dict,
                                                               simulation_input_dict["percentage_increase"]
@@ -214,18 +223,20 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
                                         bought_price=1))
         return holdings
 
-
     def buy_altcoin_from_reference_coin_overall(self,
                                                 current_time,
                                                 holdings,
                                                 potential_coins,
                                                 max_types_of_coins):
         reference_coin_qty = self.get_coin_qty(holdings,
-                                               coin_name=self.reference_coin)
-        instant_price_dict = get_instantaneous_history(self.history_access,
-                                                  current_time,
-                                                  candle=self.candle
-                                                  )
+                                                   coin_name=self.reference_coin)
+        try:
+            instant_price_dict = get_instantaneous_history(self.history_access,
+                                                           current_time,
+                                                           candle=self.candle
+                                                           )
+        except InsufficientHistory as e:
+            return holdings
 
         max_ref_coin_in_order = 1/max_types_of_coins
         altcoins_number_to_buy = math.ceil(reference_coin_qty/max_ref_coin_in_order)
