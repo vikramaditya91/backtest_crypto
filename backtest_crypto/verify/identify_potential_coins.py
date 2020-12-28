@@ -37,10 +37,6 @@ class PotentialCoinClient:
                  pickled_potential_coin_path=None
                  ):
         self.__dict__ = self._shared_state
-        # if hasattr(self, "time_interval_iterator"):
-        #     if time_interval_iterator != self.time_interval_iterator:
-        #         raise NotImplementedError("Time interval iterator should be "
-        #                                   "the same values as i was stored on the Borg")
         if pickled_potential_coin_path is not None:
             self.multi_index_df = self.load_pickled_potential_coins_to_df(
                 pickled_potential_coin_path
