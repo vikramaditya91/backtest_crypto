@@ -59,7 +59,13 @@ class GatherAbstract(ABC):
         first_item = None
         for item in itertools.product(*(dict(coordinates).values())):
             if first_item != item[0]:
-                logger.info(f"Updating the first item: {item[0]}")
+                try:
+                    history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                        item[0]
+                    )
+                    logger.info(f"Updating the first item: {history_start} to {history_end}")
+                except Exception:
+                    logger.info(f"Updating the first item: {item[0]}")
                 first_item = item[0]
             yield item
 
@@ -258,15 +264,18 @@ class GatherIndicator(GatherAbstract):
                                                                 coordinate_dict,
                                                                 history_start,
                                                                 history_end)
-                        simulation_timedelta = coordinate_dict["days_to_run"]
-                        self.indicator_insert(coordinate_dict,
-                                              potential_coins,
-                                              history_end,
-                                              simulation_timedelta)
-                    except InsufficientHistory:
-                        pass
-                        # logger.warning(f"Insufficient history for {history_start} "
-                        #                f"to {history_end}")
+                    except KeyError:
+                        logger.debug(f"Potential coins are unavailable for {coordinate_dict}")
+                        continue
+
+                    simulation_timedelta = coordinate_dict["days_to_run"]
+                    self.indicator_insert(coordinate_dict,
+                                          potential_coins,
+                                          history_end,
+                                          simulation_timedelta)
+
+                    # logger.warning(f"Insufficient history for {history_start} "
+                    #                f"to {history_end}")
         return self.gathered_dataset
 
     def set_indicator_in_dataset(self,

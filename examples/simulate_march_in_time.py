@@ -89,7 +89,7 @@ def main():
                            "common_db" /
                            f"simulate_results_{interval}_"
                            f"{narrowed_start.strftime('%d-%b-%Y')}_"
-                           f"{narrowed_end.strftime('%d-%b-%Y')}"),
+                           f"{narrowed_end.strftime('%d-%b-%Y')}_5_high_1_low"),
               "wb") as fp:
         pickle.dump(collective_ds, fp)
 

@@ -20,6 +20,7 @@ class HoldingCoin:
     quantity: float
     bought_time: datetime.datetime
     bought_price: float
+    locked: bool
 
 
 class AbstractTimeStepSimulateCreator(ABC):
@@ -67,11 +68,13 @@ class AbstractTimestepSimulatorConcrete(ABC):
         self.candle = "1h"
         self.tolerance = 0.001
         self.trade_executed = 0
-        self.banned_coins = {"NPXS", "DENT", "KEY", "NCASH", "MFT", "PHX", "STORM"}
+        self.banned_coins = {"NPXS", "DENT", "KEY", "NCASH", "MFT",
+                             "PHX", "STORM", "FUEL", "SUB", "WINGS",
+                             "ARN", "TNT"}
 
-    @abstractmethod
-    def calculate_end_of_run_value(self, *args, **kwargs):
-        raise NotImplementedError
+    # @abstractmethod
+    # def calculate_end_of_run_value(self, *args, **kwargs):
+    #     raise NotImplementedError
 
     def obtain_potential(self,
                          potential_coin_client,
@@ -105,49 +108,16 @@ class AbstractTimestepSimulatorConcrete(ABC):
                 return holding.quantity
         return 0
 
-
-class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
-    def calculate_end_of_run_value(self, simulation_input_dict):
-        simulation_start, simulation_end = TimeIntervalIterator.get_datetime_objects_from_str(
-            simulation_input_dict["time_intervals"]
-        )
-        holdings = [HoldingCoin(
-            coin_name=self.reference_coin,
-            quantity=1,
-            bought_time=simulation_start,
-            bought_price=0
-        )]
-        for simulation_at in TimeIntervalIterator.time_iterator(simulation_start,
-                                                                simulation_end,
-                                                                interval=TimeIntervalIterator.string_to_datetime(
-                                                                    self.candle)):
-            if not ((len(holdings) == 1) and (holdings[0].coin_name == self.reference_coin)):
-                holdings = self.sell_altcoins_that_hit_target(holdings,
-                                                              simulation_at,
-                                                              simulation_input_dict)
-            if self.should_buy_altcoin(holdings):
-                try:
-                    potential_coins = self.obtain_potential(self.potential_coin_client,
-                                                            coordinate_dict=simulation_input_dict,
-                                                            potential_start=simulation_start,
-                                                            potential_end=simulation_at)
-                except KeyError as e:
-                    # logger.debug(f"Potential coins not found for {simulation_start} to {simulation_at}."
-                    #              "Skipping this simulation timestep")
-                    continue
-                holdings = self.buy_altcoin_from_reference_coin_overall(simulation_at,
-                                                                   holdings,
-                                                                   potential_coins,
-                                                                   simulation_input_dict["max_coins_to_buy"], )
-            try:
-                if (simulation_at.day % 5) == 0 and (simulation_at.hour == 1):
-                    logger.debug(f"Holdings are worth"
-                                 f" {self.get_total_holding_worth(holdings, simulation_at)} "
-                                 f"at {simulation_at}")
-            except InsufficientHistory as e:
-                pass
-        return self.get_total_holding_worth(holdings,
-                                            simulation_end)
+    def log_holding_value(self,
+                          holdings,
+                          simulation_time):
+        try:
+            if (simulation_time.day % 5) == 0 and (simulation_time.hour == 1):
+                logger.debug(f"Holdings are worth"
+                             f" {self.get_total_holding_worth(holdings, simulation_time)} "
+                             f"at {simulation_time}")
+        except InsufficientHistory as e:
+            pass
 
     def get_total_holding_worth(self,
                                 holding,
@@ -170,6 +140,54 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
             return False
         return (holding.bought_time + days_to_run) < current_time
 
+    def calculate_end_of_run_value(self, simulation_input_dict):
+        simulation_start, simulation_end = TimeIntervalIterator.get_datetime_objects_from_str(
+            simulation_input_dict["time_intervals"]
+        )
+        holdings = [HoldingCoin(
+            coin_name=self.reference_coin,
+            quantity=1,
+            bought_time=simulation_start,
+            bought_price=0,
+            locked=False
+        )]
+        for simulation_at in TimeIntervalIterator.time_iterator(simulation_start,
+                                                                simulation_end,
+                                                                interval=TimeIntervalIterator.string_to_datetime(
+                                                                    self.candle)):
+            if not ((len(holdings) == 1) and (holdings[0].coin_name == self.reference_coin)):
+                holdings = self.sell_altcoins_that_hit_target(holdings,
+                                                              simulation_at,
+                                                              simulation_input_dict)
+            if self.should_buy_altcoin(holdings):
+                try:
+                    potential_coins = self.obtain_potential(self.potential_coin_client,
+                                                            coordinate_dict=simulation_input_dict,
+                                                            potential_start=simulation_start,
+                                                            potential_end=simulation_at)
+                except KeyError as e:
+                    # logger.debug(f"Potential coins not found for {simulation_start} to {simulation_at}."
+                    #              "Skipping this simulation timestep")
+                    continue
+                holdings = self.buy_altcoin_from_reference_coin_overall(simulation_at,
+                                                                        holdings,
+                                                                   potential_coins,
+                                                                   simulation_input_dict["max_coins_to_buy"], )
+            self.log_holding_value(holdings,
+                                   simulation_at)
+        return self.get_total_holding_worth(holdings,
+                                            simulation_end)
+
+    @abstractmethod
+    def sell_altcoins_that_hit_target(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def buy_altcoin_from_reference_coin_overall(self, *args, **kwargs):
+        pass
+
+
+class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
     def has_holding_reached_target_price(self,
                                          holding: HoldingCoin,
                                          instant_price_dict: Dict,
@@ -220,7 +238,8 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
             holdings.append(HoldingCoin(coin_name=self.reference_coin,
                                         quantity=reference_coin_qty,
                                         bought_time=current_time,
-                                        bought_price=1))
+                                        bought_price=1,
+                                        locked=False))
         return holdings
 
     def buy_altcoin_from_reference_coin_overall(self,
@@ -265,7 +284,8 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
             holdings.append(HoldingCoin(coin_name=coin_to_buy,
                                         quantity=qty_of_altcoin,
                                         bought_time=current_time,
-                                        bought_price=altcoin_price))
+                                        bought_price=altcoin_price,
+                                        locked=False))
             self.trade_executed += reference_coin_qty_to_sell
         return holdings
 
