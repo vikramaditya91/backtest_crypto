@@ -13,7 +13,7 @@ from crypto_oversold.core_calc import candle_independent, \
 
 from backtest_crypto.history_collect.gather_history import get_merged_history
 from backtest_crypto.utilities.data_structs import time_interval_iterator_to_pd_multiindex
-from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinError
+from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinTimeIndexError
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ class PotentialCoinClient:
         try:
             self.multi_index_df[history_start, history_end]
         except KeyError as e:
-            raise MissingPotentialCoinError
+            raise MissingPotentialCoinTimeIndexError
         if not self.does_potential_coin_exist_in_object(history_start,
                                                         history_end,
                                                         instance_potential_strategy):

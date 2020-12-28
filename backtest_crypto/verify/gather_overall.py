@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import xarray as xr
 
-from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinError
+from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinTimeIndexError
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, PotentialCoinClient
 from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator
@@ -261,7 +261,7 @@ class GatherIndicator(GatherAbstract):
                                                                 coordinate_dict,
                                                                 history_start,
                                                                 history_end)
-                    except MissingPotentialCoinError:
+                    except MissingPotentialCoinTimeIndexError:
                         logger.debug(f"Potential coins are unavailable for {coordinate_dict}")
                         continue
 

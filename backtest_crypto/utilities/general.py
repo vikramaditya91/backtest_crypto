@@ -11,5 +11,5 @@ class InsufficientHistory(ValueError):
     pass
 
 
-class MissingPotentialCoinError(KeyError):
+class MissingPotentialCoinTimeIndexError(KeyError):
     pass
