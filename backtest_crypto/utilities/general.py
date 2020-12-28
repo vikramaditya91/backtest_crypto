@@ -9,3 +9,7 @@ class Singleton (type):
 
 class InsufficientHistory(ValueError):
     pass
+
+
+class MissingPotentialCoinError(KeyError):
+    pass

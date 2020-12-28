@@ -123,7 +123,7 @@ class ManualSourceIterators:
         return [1]
 
     def max_coins_to_buy(self):
-        return [4, 10]
+        return [4]
 
 
 class ManualSuccessIterators:

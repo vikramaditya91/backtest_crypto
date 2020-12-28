@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict
 
 from backtest_crypto.history_collect.gather_history import get_instantaneous_history
-from backtest_crypto.utilities.general import InsufficientHistory
+from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinError
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 
 logger = logging.getLogger(__name__)
@@ -165,9 +165,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                                             coordinate_dict=simulation_input_dict,
                                                             potential_start=simulation_start,
                                                             potential_end=simulation_at)
-                except KeyError as e:
-                    # logger.debug(f"Potential coins not found for {simulation_start} to {simulation_at}."
-                    #              "Skipping this simulation timestep")
+                except MissingPotentialCoinError:
                     continue
                 holdings = self.buy_altcoin_from_reference_coin_overall(simulation_at,
                                                                         holdings,

@@ -4,10 +4,9 @@ from abc import ABC, abstractmethod
 
 import xarray as xr
 
-from backtest_crypto.utilities.general import InsufficientHistory
+from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinError
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
-from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator
-from backtest_crypto.verify.identify_potential_coins import PotentialCoinClient
+from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, PotentialCoinClient
 from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator
 from backtest_crypto.verify.simulate_timesteps import calculate_simulation
 
@@ -122,7 +121,6 @@ class GatherPotential(GatherAbstract):
 class GatherSimulation(GatherAbstract):
     def __init__(self, *args, **kwargs):
         super(GatherSimulation, self).__init__(*args, **kwargs)
-        # TODO The intialization of potential coin to disk does not need this?
         self.gathered_dataset = self.initialize_success_dataset()
 
     def get_coords_for_dataset(self):
@@ -195,7 +193,6 @@ class GatherIndicator(GatherAbstract):
 
     def __init__(self, *args, **kwargs):
         super(GatherIndicator, self).__init__(*args, **kwargs)
-        # TODO The intialization of potential coin to disk does not need this?
         self.gathered_dataset = self.initialize_success_dataset()
 
     def get_coords_for_dataset(self):
@@ -264,7 +261,7 @@ class GatherIndicator(GatherAbstract):
                                                                 coordinate_dict,
                                                                 history_start,
                                                                 history_end)
-                    except KeyError:
+                    except MissingPotentialCoinError:
                         logger.debug(f"Potential coins are unavailable for {coordinate_dict}")
                         continue
 
