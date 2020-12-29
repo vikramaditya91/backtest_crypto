@@ -36,7 +36,6 @@ setup(
     packages=["backtest_crypto",
               "backtest_crypto.history_collect",
               "backtest_crypto.utilities",
-              "backtest_crypto.iterators",
               "backtest_crypto.verify",
               ],
     url="https://github.com/vikramaditya91/backtest_crypto",
