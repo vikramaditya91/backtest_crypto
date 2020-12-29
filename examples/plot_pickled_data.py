@@ -49,7 +49,6 @@ def plot_indicator():
                                          ))
     with open(pickle_file, "rb") as fp:
         simulated_dataset = pickle.load(fp)
-    # simulated_dataset = simulated_dataset.sortby("time_intervals")
     for item in simulated_dataset:
         simulated_dataset[item] = simulated_dataset[item].fillna(0)
     simulated_dataset = simulated_dataset.sel(time_intervals=simulated_dataset.time_intervals[1:-1])
