@@ -57,6 +57,7 @@ setup(
     ),
     extras_require=extras,
     install_requires=[
+        'crypto_oversold @ git+ssh://github.com:vikramaditya91/crypto_oversold.git'
         'sqlalchemy',
         'matplotlib'
     ],
