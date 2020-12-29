@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import numpy as np
-import pandas as pd
 from matplotlib import cm
 from matplotlib import pyplot as plt
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
@@ -70,6 +69,12 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                                                len(x_index))
         return x_axis, y_axis
 
+    @staticmethod
+    def get_time_sorted_ds(dataset):
+        sorted_ts = dataset.time_intervals.values.tolist()
+        sorted_ts.sort()
+        return dataset.sel({"time_intervals": sorted_ts})
+
     def generate_graph(self,
                        data_vars,
                        surface_graph_axes,
@@ -79,9 +84,7 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         simulation_dataset = self.simulation_dataset.sel(
             {"strategy": standard_other_dict.pop("strategy")}
         )
-        # sorted_ts = simulation_dataset.time_intervals.values.tolist()
-        # sorted_ts.sort()
-        # simulation_dataset = simulation_dataset.sel({"time_intervals": sorted_ts})
+        simulation_dataset = self.get_time_sorted_ds(simulation_dataset)
         values_to_plot = simulation_dataset[data_vars[0]].sel(standard_other_dict,
                                                                    tolerance=0.01,
                                                                    method="nearest")
@@ -92,7 +95,7 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         ax.set_xlabel(surface_graph_axes[0])
         ax.set_ylabel(surface_graph_axes[1])
         ax.set_zlabel(data_vars[0])
-        ax.set_zlim([0.85, 1.1])
+        # ax.set_zlim([0.85, 1.1])
         z_axis_values = values_to_plot.copy().values
         z_axis_values.resize(len(x_axis), len(y_axis))
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
