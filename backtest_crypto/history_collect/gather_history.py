@@ -1,19 +1,23 @@
 from __future__ import annotations
-import logging
+
 import datetime
-import xarray as xr
-import pandas as pd
-import numpy as np
+import logging
 from abc import ABC, abstractmethod
-from sqlalchemy import create_engine
-from backtest_crypto.utilities.general import Singleton
+
+import numpy as np
+import pandas as pd
+import xarray as xr
 from crypto_history.utilities.general_utilities import register_factory
+from sqlalchemy import create_engine
+
+from backtest_crypto.utilities.general import Singleton, InsufficientHistory
 
 logger = logging.getLogger(__package__)
 
 
 class AbstractRawHistoryObtainCreator(ABC):
     """Abstract disk-writer creator"""
+
     @abstractmethod
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         """factory method to create the disk-writer"""
@@ -37,10 +41,17 @@ class AbstractRawHistoryObtainCreator(ABC):
         product = self.factory_method()
         return product.get_simple_history(*args, **kwargs)
 
+    def get_instantaneous_history(self,
+                                  *args,
+                                  **kwargs):
+        product = self.factory_method()
+        return product.get_instantaneous_history(*args, **kwargs)
+
 
 @register_factory(section="access_xarray", identifier="sqlite")
 class SQLiteCoinHistoryCreator(AbstractRawHistoryObtainCreator):
     """SQLite creator"""
+
     def factory_method(self, *args, **kwargs) -> ConcreteAbstractCoinHistoryAccess:
         return ConcreteSQLiteCoinHistoryAccess(*args, **kwargs)
 
@@ -62,6 +73,10 @@ class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
 
     @abstractmethod
     def get_simple_history(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def get_instantaneous_history(self, *args, **kwargs):
         pass
 
     def store_largest_da_on_borg(self, dataarray_dict):
@@ -121,7 +136,7 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
     def df_to_xarray(self,
                      candle,
                      df):
-        underlying_np = np.array([[df.values,np.full(df.shape, candle)]])
+        underlying_np = np.array([[df.values, np.full(df.shape, candle)]])
         return xr.DataArray(underlying_np,
                             dims=["reference_assets",
                                   "ohlcv_fields",
@@ -146,6 +161,12 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                        end: datetime.datetime,
                        dataarray,
                        candle):
+
+        if start > end:
+            temp_end = end
+            end = start
+            start = temp_end
+            logger.warning("Switching start and end in select history as start is after end")
         # TODO Potential for improvement here
         timestamp_list = self.get_timestamps(candle)
         starter = start.timestamp() * 1000
@@ -190,6 +211,20 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                                    self.largest_xarray_dict[candle],
                                    candle)
 
+    def get_instantaneous_history(self,
+                                  current_time,
+                                  candle):
+        da = self.largest_xarray_dict[candle]
+        try:
+            instant_history = da.sel(timestamp=current_time.timestamp() * 1000)
+        except KeyError:
+            raise InsufficientHistory(f"History not present in {current_time}")
+        da = instant_history.dropna("base_assets")
+        da_dict = da.loc[{"ohlcv_fields": self.ohlcv_field}].to_dict()
+        return dict(zip(da_dict["coords"]["base_assets"]["data"],
+                        da_dict["data"][0]
+                        ))
+
 
 def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
                          overall_start,
@@ -219,3 +254,10 @@ def get_simple_history(creator: AbstractRawHistoryObtainCreator,
                        ):
     return creator.get_simple_history(*args,
                                       **kwargs)
+
+
+def get_instantaneous_history(creator: AbstractRawHistoryObtainCreator,
+                              current_time,
+                              candle):
+    return creator.get_instantaneous_history(current_time,
+                                             candle)

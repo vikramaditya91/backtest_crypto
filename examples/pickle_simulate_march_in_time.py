@@ -9,7 +9,8 @@ from crypto_oversold.emit_data.sqlalchemy_operations import OversoldCoins
 from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
-from backtest_crypto.verify.gather_overall import GatherSuccess
+from backtest_crypto.verify import gather_overall
+from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "7d"
+    interval = "25d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -48,39 +49,47 @@ def main():
 
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
-    gather_items = GatherSuccess(
+
+    iterators = {"time": time_interval_iterator,
+                 "source": [
+                     source_iterators.high_cutoff,
+                     source_iterators.low_cutoff,
+                     source_iterators.max_coins_to_buy
+                 ],
+                 "success": [
+                     success_iterators.percentage_increase,
+                     success_iterators.days_to_run
+                 ],
+                 "target": [
+                     "calculate_end_of_run_value"
+                 ],
+                 "strategy":
+                     [
+                         MarketBuyLimitSellSimulationCreator
+                     ]
+                 }
+    gather_items = gather_overall.GatherSimulation(
         sqlite_access_creator,
-        data_source_general,
-        data_source_specific,
+        (data_source_general, data_source_specific),
         reference_coin,
         ohlcv_field,
-        time_interval_iterator,
-        source_iterators=[
-            source_iterators.high_cutoff,
-            source_iterators.low_cutoff
-        ],
-        success_iterators=[
-            success_iterators.percentage_increase,
-            success_iterators.days_to_run
-        ],
-        target_iterators=["percentage_of_bought_coins_hit_target",
-                          "end_of_run_value_of_bought_coins_if_not_sold",
-                          "end_of_run_value_of_bought_coins_if_sold_on_target"]
+        iterators
     )
+
     pickled_potential_path = str(pathlib.Path(pathlib.Path(__file__).parents[2] /
                                               "common_db" /
                                               f"1h_2018_to_2020_potential_coins.pickled"))
     narrowed_start = datetime(day=25, month=8, year=2018)
     narrowed_end = datetime(day=17, month=11, year=2020)
 
-    collective_ds = gather_items.overall_success_calculator(narrowed_start,
-                                                            narrowed_end,
-                                                            loaded_potential_coins=pickled_potential_path)
+    collective_ds = gather_items.simulation_calculator(narrowed_start,
+                                                       narrowed_end,
+                                                       loaded_potential_coins=pickled_potential_path)
     with open(pathlib.Path(pathlib.Path(__file__).parents[2] /
                            "common_db" /
-                           f"success_results_{interval}_"
+                           f"simulate_results_{interval}_"
                            f"{narrowed_start.strftime('%d-%b-%Y')}_"
-                           f"{narrowed_end.strftime('%d-%b-%Y')}"),
+                           f"{narrowed_end.strftime('%d-%b-%Y')}_5_high_1_low"),
               "wb") as fp:
         pickle.dump(collective_ds, fp)
 
