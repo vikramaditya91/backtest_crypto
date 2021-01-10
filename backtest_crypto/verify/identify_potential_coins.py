@@ -27,6 +27,24 @@ class PotentialNamedTuple:
         return potential_coin(**potential_coin_strategy)
 
 
+class MultiIndexPotential(pd.DataFrame):
+    @classmethod
+    def load_pickled(cls,
+                     pickled_potential_coin_path,
+                     ):
+        with open(pickled_potential_coin_path, "rb") as fp:
+            pickled_coins = pickle.load(fp)
+        df = cls(pickled_coins)
+        df["potential"] = None
+        return df
+
+    @classmethod
+    def initialize_series(cls,
+                          time_interval_iterator):
+        return cls(index=time_interval_iterator_to_pd_multiindex(time_interval_iterator),
+                   columns=["all", "potential"])
+
+
 class PotentialCoinClient:
     _shared_state = {}
 
@@ -38,26 +56,11 @@ class PotentialCoinClient:
                  ):
         self.__dict__ = self._shared_state
         if pickled_potential_coin_path is not None:
-            self.multi_index_df = self.load_pickled_potential_coins_to_df(
-                pickled_potential_coin_path
-            )
+            self.multi_index_df = MultiIndexPotential.load_pickled(pickled_potential_coin_path)
         if not self._shared_state:
-            self.multi_index_df = self.initialize_series(time_interval_iterator)
+            self.multi_index_df = MultiIndexPotential.initialize_series(time_interval_iterator)
         self.potential_calc_creator = potential_calc_creator
         self.data_source_general, self.data_source_specific = data_source
-
-    @staticmethod
-    def load_pickled_potential_coins_to_df(pickled_potential_coins):
-        with open(pickled_potential_coins, "rb") as fp:
-            pickled_coins = pickle.load(fp)
-        df = pd.DataFrame(pickled_coins)
-        df["potential"] = None
-        return df
-
-    @staticmethod
-    def initialize_series(time_interval_iterator):
-        return pd.DataFrame(index=time_interval_iterator_to_pd_multiindex(time_interval_iterator),
-                            columns=["all", "potential"])
 
     def does_potential_coin_exist_in_object(self,
                                             history_start,
@@ -110,7 +113,7 @@ class PotentialCoinClient:
         instance_potential_strategy = PotentialNamedTuple.get_tuple_instance(**potential_coin_strategy)
         history_start, history_end = consider_history
         try:
-            self.multi_index_df[history_start, history_end]
+            self.multi_index_df["all"][history_start, history_end]
         except KeyError as e:
             raise MissingPotentialCoinTimeIndexError
         if not self.does_potential_coin_exist_in_object(history_start,
