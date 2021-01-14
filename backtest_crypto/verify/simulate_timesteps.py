@@ -310,9 +310,9 @@ class AbstractTimestepSimulatorConcrete(ABC):
         return holdings
 
     def filter_coins_with_history(self,
-                                  coins,
-                                  history_start,
-                                  history_end,
+                                  coins: List,
+                                  history_start: datetime.datetime,
+                                  history_end: datetime.datetime,
                                   ) -> List:
         simple_history = get_simple_history(self.history_access,
                                             history_start,
@@ -324,16 +324,16 @@ class AbstractTimestepSimulatorConcrete(ABC):
         return list(set(coins).intersection(set(valid_history_coins)))
 
     def get_valid_potential_coin_to_buy(self,
-                                        simulation_input_dict,
-                                        simulation_start,
-                                        simulation_at) -> List:
+                                        simulation_input_dict: Dict,
+                                        simulation_start: datetime.datetime,
+                                        simulation_at:datetime.datetime) -> List:
         try:
             potential_coins = self.obtain_potential(self.potential_coin_client,
                                                     coordinate_dict=simulation_input_dict,
                                                     potential_start=simulation_start,
                                                     potential_end=simulation_at)
         except MissingPotentialCoinTimeIndexError:
-            return
+            return []
         else:
             filtered_coins = self.filter_coins_with_history(
                 coins=list(potential_coins),
@@ -345,10 +345,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
 
 class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
     def manage_simulation_per_timestep(self,
-                                       holdings,
-                                       simulation_start,
-                                       simulation_at,
-                                       simulation_input_dict):
+                                       holdings: List,
+                                       simulation_start: datetime.datetime,
+                                       simulation_at: datetime.datetime,
+                                       simulation_input_dict: Dict) -> List:
         if not ((len(holdings) == 1) and (holdings[0].coin_name == self.reference_coin)):
             holdings = self.limit_sell_altcoins_that_hit_target(holdings,
                                                                 simulation_at,
@@ -357,7 +357,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
             potential_coins = self.get_valid_potential_coin_to_buy(simulation_input_dict,
                                                                    simulation_start,
                                                                    simulation_at)
-            if potential_coins is not None:
+            if not potential_coins:
                 holdings = self.market_buy_altcoin_from_reference_coin_overall(simulation_at,
                                                                                holdings,
                                                                                potential_coins,
