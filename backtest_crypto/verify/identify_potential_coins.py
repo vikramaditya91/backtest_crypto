@@ -32,9 +32,8 @@ class MultiIndexPotential(pd.DataFrame):
     def load_pickled(cls,
                      pickled_potential_coin_path,
                      ):
-        with open(pickled_potential_coin_path, "rb") as fp:
-            pickled_coins = pickle.load(fp)
-        df = cls(pickled_coins)
+        pickled_series = pd.read_pickle(pickled_potential_coin_path)
+        df = cls(pickled_series)
         df["potential"] = None
         return df
 
