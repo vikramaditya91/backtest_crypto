@@ -20,7 +20,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "25d"
+    interval = "100d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -41,7 +41,7 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[2] /
+                         file_path=str(pathlib.Path(pathlib.Path(__file__).resolve().parents[3] /
                                                     "common_db" /
                                                     f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.pickled")),
                          mapped_class=OversoldCoins,
@@ -76,7 +76,7 @@ def main():
         iterators
     )
 
-    pickled_potential_path = str(pathlib.Path(pathlib.Path(__file__).parents[2] /
+    pickled_potential_path = str(pathlib.Path(pathlib.Path(__file__).resolve().parents[3] /
                                               "common_db" /
                                               f"1h_2018_to_2020_potential_coins.pickled"))
     narrowed_start = datetime(day=25, month=8, year=2018)
@@ -85,7 +85,7 @@ def main():
     collective_ds = gather_items.simulation_calculator(narrowed_start,
                                                        narrowed_end,
                                                        loaded_potential_coins=pickled_potential_path)
-    with open(pathlib.Path(pathlib.Path(__file__).parents[2] /
+    with open(pathlib.Path(pathlib.Path(__file__).resolve().parents[3] /
                            "common_db" /
                            f"simulate_results_{interval}_"
                            f"{narrowed_start.strftime('%d-%b-%Y')}_"
