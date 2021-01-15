@@ -72,12 +72,11 @@ class PotentialCoinClient:
                 return potential_coin in self.multi_index_df["potential"][history_start][history_end][0].keys()
         return False
 
-    @staticmethod
-    def filter_potential(original_dict,
+    def filter_potential(self,
+                         original_dict,
                          potential_coin_strategy,
                          ):
-        higher_cutoff = potential_coin_strategy["high_cutoff"]
-        lower_cutoff = potential_coin_strategy["low_cutoff"]
+        lower_cutoff, higher_cutoff = self.get_low_high_cutoff(potential_coin_strategy)
         return dict(filter(lambda x: lower_cutoff < x[1] < higher_cutoff, original_dict.items()))
 
     def update_potential_coin_location(self,
@@ -104,12 +103,34 @@ class PotentialCoinClient:
             self.multi_index_df["potential"][history_start, history_end] = [
                 {potential_coin: dict_of_potential_coins}]
 
+    @staticmethod
+    def get_low_high_cutoff(potential_coin_strategy):
+        if ("low_cutoff" in potential_coin_strategy.keys()) and \
+                ("high_cutoff" in potential_coin_strategy.keys()):
+            low_cutoff = potential_coin_strategy["low_cutoff"]
+            high_cutoff = potential_coin_strategy["high_cutoff"]
+        elif ("mean_potential" in potential_coin_strategy.keys()) and \
+                ("mean_spread" in potential_coin_strategy.keys()):
+            low_cutoff = potential_coin_strategy["mean_potential"] - potential_coin_strategy["mean_spread"]
+            high_cutoff = potential_coin_strategy["mean_potential"] + potential_coin_strategy["mean_spread"]
+        else:
+            raise ValueError("Low and high-cutoffs indeterminate")
+        return low_cutoff, high_cutoff
+
+    def get_potential_strategy_tuple(self,
+                                     potential_coin_strategy):
+        low_cutoff, high_cutoff = self.get_low_high_cutoff(potential_coin_strategy)
+        potential_input_dict = dict(low_cutoff=low_cutoff,
+                                    high_cutoff=high_cutoff,
+                                    reference_coin=potential_coin_strategy["reference_coin"],
+                                    ohlcv_field=potential_coin_strategy["ohlcv_field"])
+        return PotentialNamedTuple.get_tuple_instance(**potential_input_dict)
+
     def get_potential_coin_at(self,
                               consider_history,
                               potential_coin_strategy,
                               ):
-
-        instance_potential_strategy = PotentialNamedTuple.get_tuple_instance(**potential_coin_strategy)
+        instance_potential_strategy = self.get_potential_strategy_tuple(potential_coin_strategy)
         history_start, history_end = consider_history
         try:
             self.multi_index_df["all"][history_start, history_end]

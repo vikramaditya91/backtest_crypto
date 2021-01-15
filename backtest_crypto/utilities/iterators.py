@@ -122,6 +122,12 @@ class ManualSourceIterators:
     def low_cutoff(self):
         return [1]
 
+    def mean_potential(self):
+        return [0.5, 1, 2, 3, 5]
+
+    def mean_spread(self):
+        return [0.2]
+
     def max_coins_to_buy(self):
         return [4]
 

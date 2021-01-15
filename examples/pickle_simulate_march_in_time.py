@@ -52,8 +52,8 @@ def main():
 
     iterators = {"time": time_interval_iterator,
                  "source": [
-                     source_iterators.high_cutoff,
-                     source_iterators.low_cutoff,
+                     source_iterators.mean_potential,
+                     source_iterators.mean_spread,
                      source_iterators.max_coins_to_buy
                  ],
                  "success": [
