@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import pickle
 import logging
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from datetime import timedelta
+from typing import Tuple, Dict
 
 import pandas as pd
 from crypto_oversold import class_builders
@@ -73,9 +73,9 @@ class PotentialCoinClient:
         return False
 
     def filter_potential(self,
-                         original_dict,
-                         potential_coin_strategy,
-                         ):
+                         original_dict: Dict,
+                         potential_coin_strategy: Dict,
+                         ) -> Dict:
         lower_cutoff, higher_cutoff = self.get_low_high_cutoff(potential_coin_strategy)
         return dict(filter(lambda x: lower_cutoff < x[1] < higher_cutoff, original_dict.items()))
 
@@ -104,7 +104,7 @@ class PotentialCoinClient:
                 {potential_coin: dict_of_potential_coins}]
 
     @staticmethod
-    def get_low_high_cutoff(potential_coin_strategy):
+    def get_low_high_cutoff(potential_coin_strategy: Dict) -> Tuple[float, float]:
         if ("low_cutoff" in potential_coin_strategy.keys()) and \
                 ("high_cutoff" in potential_coin_strategy.keys()):
             low_cutoff = potential_coin_strategy["low_cutoff"]
@@ -118,7 +118,7 @@ class PotentialCoinClient:
         return low_cutoff, high_cutoff
 
     def get_potential_strategy_tuple(self,
-                                     potential_coin_strategy):
+                                     potential_coin_strategy: Dict):
         low_cutoff, high_cutoff = self.get_low_high_cutoff(potential_coin_strategy)
         potential_input_dict = dict(low_cutoff=low_cutoff,
                                     high_cutoff=high_cutoff,

@@ -126,7 +126,7 @@ class ManualSourceIterators:
         return [0.75, 1.5, 2.5, 3.5, 5]
 
     def cutoff_deviation(self):
-        return [0.4]
+        return [0.2]
 
     def max_coins_to_buy(self):
         return [4]
