@@ -30,6 +30,7 @@ class GatherAbstract(ABC):
         self.source_iterators = iterators["source"]
         self.target_iterators = iterators["target"]
         self.strategy_iterators = iterators["strategy"]
+        self.do_not_sort_list = ["days_to_run"]
 
     @abstractmethod
     def get_coords_for_dataset(self):
@@ -38,7 +39,8 @@ class GatherAbstract(ABC):
     def yield_tuple_strategy(self):
         coordinates = self.get_coords_for_dataset()
         for key, values in coordinates:
-            values.sort()
+            if key not in self.do_not_sort_list:
+                values.sort()
 
         first_item = None
         for item in itertools.product(*(dict(coordinates).values())):
@@ -190,18 +192,6 @@ class GatherIndicator(GatherAbstract):
         for source in self.source_iterators:
             coordinates.append((source.__name__, source()))
         return coordinates
-
-    def get_simulation_arguments(self,
-                                 coords):
-        success_dict = {}
-        for item in self.success_iterators:
-            if item.__name__ == "days_to_run":
-                success_dict["days_to_run"] = TimeIntervalIterator.numpy_dt_to_timedelta(
-                    coords["days_to_run"].values
-                )
-            else:
-                success_dict[item.__name__] = coords[item.__name__].values.tolist()
-        return success_dict
 
     def indicator_insert(self,
                          simulation_input_dict,

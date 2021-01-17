@@ -92,8 +92,8 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                                            values_to_plot)
 
         ax = plt.axes(projection="3d")
-        ax.set_xlabel(surface_graph_axes[0])
-        ax.set_ylabel(surface_graph_axes[1])
+        self.set_labels(ax,
+                        surface_graph_axes)
         ax.set_zlabel(data_vars[0])
         # ax.set_zlim([0.85, 1.1])
         z_axis_values = values_to_plot.copy().values
@@ -101,6 +101,17 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
         ax.plot_surface(x_axis, y_axis.T, z_axis_values, cmap=cm.coolwarm, edgecolor='none', alpha=0.5)
         plt.show()
+
+    def set_labels(self,
+                   axis,
+                   surface_graph_axes):
+        # TODO Terrible way to do it
+        if "time_intervals" in surface_graph_axes:
+            axis.set_xlabel(surface_graph_axes[1])
+            axis.set_ylabel(surface_graph_axes[0])
+        else:
+            axis.set_xlabel(surface_graph_axes[0])
+            axis.set_ylabel(surface_graph_axes[1])
 
 
 def show_graph(creator: AbstractGraphCreator,

@@ -20,7 +20,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "100d"
+    interval = "150d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
