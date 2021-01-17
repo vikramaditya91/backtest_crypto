@@ -70,21 +70,6 @@ class AbstractTimestepSimulatorConcrete(ABC):
         self.trade_executed = 0
         self.banned_coins = {}
 
-    def obtain_potential(self,
-                         potential_coin_client,
-                         coordinate_dict,
-                         potential_start,
-                         potential_end):
-        potential_coin_strategy = dict(low_cutoff=coordinate_dict["low_cutoff"],
-                                       high_cutoff=coordinate_dict["high_cutoff"],
-                                       reference_coin=self.reference_coin,
-                                       ohlcv_field=self.ohlcv_field)
-        consider_history = (potential_start, potential_end)
-        return potential_coin_client.get_potential_coin_at(
-            consider_history=consider_history,
-            potential_coin_strategy=potential_coin_strategy,
-        )
-
     def should_buy_altcoin(self,
                            holdings,
                            ):
@@ -328,10 +313,12 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                         simulation_start: datetime.datetime,
                                         simulation_at:datetime.datetime) -> List:
         try:
-            potential_coins = self.obtain_potential(self.potential_coin_client,
-                                                    coordinate_dict=simulation_input_dict,
-                                                    potential_start=simulation_start,
-                                                    potential_end=simulation_at)
+            potential_coins = self.potential_coin_client.get_potential_coin_at(
+                consider_history=(simulation_start, simulation_at),
+                potential_coin_strategy={**simulation_input_dict,
+                                         "ohlcv_field": self.ohlcv_field,
+                                         "reference_coin": self.reference_coin}
+            )
         except MissingPotentialCoinTimeIndexError:
             return []
         else:
@@ -357,7 +344,7 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
             potential_coins = self.get_valid_potential_coin_to_buy(simulation_input_dict,
                                                                    simulation_start,
                                                                    simulation_at)
-            if not potential_coins:
+            if potential_coins:
                 holdings = self.market_buy_altcoin_from_reference_coin_overall(simulation_at,
                                                                                holdings,
                                                                                potential_coins,

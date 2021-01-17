@@ -35,21 +35,6 @@ class GatherAbstract(ABC):
     def get_coords_for_dataset(self):
         pass
 
-    def obtain_potential(self,
-                         potential_coin_client,
-                         coordinate_dict,
-                         potential_start,
-                         potential_end):
-        potential_coin_strategy = dict(low_cutoff=coordinate_dict["low_cutoff"],
-                                       high_cutoff=coordinate_dict["high_cutoff"],
-                                       reference_coin=self.reference_coin,
-                                       ohlcv_field=self.ohlcv_field)
-        consider_history = (potential_start, potential_end)
-        return potential_coin_client.get_potential_coin_at(
-            consider_history=consider_history,
-            potential_coin_strategy=potential_coin_strategy,
-        )
-
     def yield_tuple_strategy(self):
         coordinates = self.get_coords_for_dataset()
         for key, values in coordinates:
@@ -108,10 +93,12 @@ class GatherPotential(GatherAbstract):
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
                     try:
-                        self.obtain_potential(potential_coin_client,
-                                              coordinate_dict,
-                                              history_start,
-                                              history_end)
+                        potential_coin_client.get_potential_coin_at(
+                            consider_history=(history_start, history_end),
+                            potential_coin_strategy={**coordinate_dict,
+                                                     "ohlcv_field": self.ohlcv_field,
+                                                     "reference_coin": self.reference_coin}
+                        )
                     except InsufficientHistory:
                         logger.warning(f"Insufficient history for {history_start} to {history_end}")
         pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
@@ -257,10 +244,12 @@ class GatherIndicator(GatherAbstract):
             if narrowed_end_time >= history_end:
                 if history_end >= narrowed_start_time:
                     try:
-                        potential_coins = self.obtain_potential(potential_coin_client,
-                                                                coordinate_dict,
-                                                                history_start,
-                                                                history_end)
+                        potential_coins = potential_coin_client.get_potential_coin_at(
+                            consider_history=(history_start, history_end),
+                            potential_coin_strategy={**coordinate_dict,
+                                                     "ohlcv_field": self.ohlcv_field,
+                                                     "reference_coin": self.reference_coin}
+                        )
                     except MissingPotentialCoinTimeIndexError:
                         logger.debug(f"Potential coins are unavailable for {coordinate_dict}")
                         continue
