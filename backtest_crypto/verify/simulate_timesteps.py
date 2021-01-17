@@ -49,6 +49,11 @@ class MarketBuyLimitSellSimulationCreator(AbstractTimeStepSimulateCreator):
         return MarketBuyLimitSellSimulatorConcrete(*args, **kwargs)
 
 
+class ValidPotentialCoins:
+    def __init__(self):
+        a = 1
+
+
 class AbstractTimestepSimulatorConcrete(ABC):
     _shared_state = {}
 
@@ -61,6 +66,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
         if not self._shared_state:
             self.overall_history_dict = {}
             self.maximum_history_dict = {}
+            self.coins_with_valid_history = {}
         self.ohlcv_field = ohlcv_field
         self.history_access = history_access
         self.potential_coin_client = potential_coin_client
@@ -219,7 +225,6 @@ class AbstractTimestepSimulatorConcrete(ABC):
         potential_valid_altcoin = list(potential_coins_set.intersection(instant_price_dict.keys()))
         potential_valid_altcoin_not_held = list(set(potential_valid_altcoin) -
                                                 set(map(lambda x: x.coin_name, holdings)) -
-                                                # TODO Better way to do it
                                                 set(self.banned_coins))
         return potential_valid_altcoin_not_held
 
@@ -294,19 +299,48 @@ class AbstractTimestepSimulatorConcrete(ABC):
                 pass
         return holdings
 
+    def add_valid_coins_with_history(self,
+                                     start_time,
+                                     end_time):
+        simple_history = get_simple_history(self.history_access,
+                                            start_time,
+                                            end_time,
+                                            self.candle)
+        particular_history = simple_history.sel({"ohlcv_fields": self.ohlcv_field})
+        nan_values = particular_history.isnull().sum(axis=1)
+        sufficient_history_coins = nan_values.where(lambda x: x == 0, drop=True).base_assets.values.tolist()
+        self.coins_with_valid_history[start_time, end_time] = sufficient_history_coins
+
+    def get_cached_history(self,
+                                history_start,
+                                history_end,
+                                ):
+        for start, end in self.coins_with_valid_history.keys():
+            if (start <= history_start) and (end >= history_end):
+                return self.coins_with_valid_history[start, end]
+        raise ValueError
+
+    def get_coins_with_sufficient_history(self,
+                                          history_start,
+                                          history_end,
+                                          cache_padding=datetime.timedelta(days=5)):
+        try:
+            return self.get_cached_history(history_start,
+                                           history_end)
+        except ValueError:
+            self.add_valid_coins_with_history(history_start,
+                                              history_end+cache_padding)
+        return self.get_coins_with_sufficient_history(history_start,
+                                                      history_end)
+
     def filter_coins_with_history(self,
                                   coins: List,
                                   history_start: datetime.datetime,
                                   history_end: datetime.datetime,
                                   ) -> List:
-        simple_history = get_simple_history(self.history_access,
-                                            history_start,
-                                            history_end,
-                                            self.candle)
-        particular_history = simple_history.sel({"base_assets": coins, "ohlcv_fields":self.ohlcv_field})
-        nan_values = particular_history.isnull().sum(axis=1)
-        valid_history_coins = nan_values.where(lambda x: x == 0, drop=True).base_assets.values.tolist()
-        return list(set(coins).intersection(set(valid_history_coins)))
+        sufficient_history_coins = self.get_coins_with_sufficient_history(history_start,
+                                                                          history_end)
+        return list(set(coins).intersection(set(sufficient_history_coins)))
 
     def get_valid_potential_coin_to_buy(self,
                                         simulation_input_dict: Dict,

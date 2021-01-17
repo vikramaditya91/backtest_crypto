@@ -20,7 +20,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "100d"
+    interval = "150d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -52,8 +52,8 @@ def main():
 
     iterators = {"time": time_interval_iterator,
                  "source": [
-                     source_iterators.mean_potential,
-                     source_iterators.mean_spread,
+                     source_iterators.cutoff_mean,
+                     source_iterators.cutoff_deviation,
                      source_iterators.max_coins_to_buy
                  ],
                  "success": [

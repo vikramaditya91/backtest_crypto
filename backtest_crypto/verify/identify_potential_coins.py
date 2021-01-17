@@ -109,10 +109,10 @@ class PotentialCoinClient:
                 ("high_cutoff" in potential_coin_strategy.keys()):
             low_cutoff = potential_coin_strategy["low_cutoff"]
             high_cutoff = potential_coin_strategy["high_cutoff"]
-        elif ("mean_potential" in potential_coin_strategy.keys()) and \
-                ("mean_spread" in potential_coin_strategy.keys()):
-            low_cutoff = potential_coin_strategy["mean_potential"] - potential_coin_strategy["mean_spread"]
-            high_cutoff = potential_coin_strategy["mean_potential"] + potential_coin_strategy["mean_spread"]
+        elif ("cutoff_mean" in potential_coin_strategy.keys()) and \
+                ("cutoff_deviation" in potential_coin_strategy.keys()):
+            low_cutoff = potential_coin_strategy["cutoff_mean"] - potential_coin_strategy["cutoff_deviation"]
+            high_cutoff = potential_coin_strategy["cutoff_mean"] + potential_coin_strategy["cutoff_deviation"]
         else:
             raise ValueError("Low and high-cutoffs indeterminate")
         return low_cutoff, high_cutoff

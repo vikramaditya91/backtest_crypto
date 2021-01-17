@@ -9,33 +9,38 @@ from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulati
 
 
 def plot_simulation():
-    pickle_file = path.join(pathlib.Path(pathlib.Path(__file__).parents[2] /
+    pickle_file = path.join(pathlib.Path(pathlib.Path(__file__).parents[3] /
                                          "common_db" /
-                                         f"simulate_results_100d_25-Aug-2018_17-Nov-2020"
+                                         f"simulate_results_150d_25-Aug-2018_17-Nov-2020_5_high_1_low"
                                          ))
+    item = "calculate_end_of_run_value"
     with open(pickle_file, "rb") as fp:
         simulated_dataset = pickle.load(fp)
     for item in simulated_dataset:
+        simulated_dataset[item] = simulated_dataset[item].dropna("time_intervals")
         simulated_dataset[item] = simulated_dataset[item].fillna(0)
-    simulated_dataset = simulated_dataset.sel(time_intervals=simulated_dataset.time_intervals[1:-1])
+    # simulated_dataset = simulated_dataset.sel(time_intervals=simulated_dataset.time_intervals[1:-1])
     show_graph(SurfaceGraph3DCreator(),
                simulated_dataset,
                data_vars=[
                    "calculate_end_of_run_value",
                ],
                surface_graph_axes=[
-                   # "percentage_increase",
+                   "cutoff_mean",
+                   "percentage_increase",
                    # "days_to_run",
-                   "time_intervals",
-                   "high_cutoff",
+                   # "time_intervals",
+                   # "percentage_increase",
                    # "low_cutoff"
                ],
                standard_other_dict={
-                   "percentage_increase": 0.05,
+                   # "cutoff_mean": 2.5,
+                   # "percentage_increase": 0.05,
                    "days_to_run": np.timedelta64(datetime.timedelta(days=20)),
+                   "cutoff_deviation": 0.5,
                    # "high_cutoff": 2,
-                   "low_cutoff": 0,
-                   # "max_coins_to_buy": 4,
+                   # "low_cutoff": 0,
+                   "max_coins_to_buy": 4,
                    "strategy": MarketBuyLimitSellSimulationCreator
                }
                )
@@ -76,4 +81,4 @@ def plot_indicator():
 
 
 if __name__ == "__main__":
-    plot_indicator()
+    plot_simulation()

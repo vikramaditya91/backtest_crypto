@@ -12,7 +12,7 @@ class TimeIntervalIterator:
                  forward_in_time: bool = True,
                  increasing_range=False):
         if isinstance(start_time, datetime) is False or isinstance(end_time, datetime) is False:
-            raise TypeError("Start time and End time should be datetime objects")
+            raise TypeError("Start time and end time should be datetime objects")
         self.start_time = start_time
         self.end_time = end_time
         self.interval = self.init_interval(interval)
@@ -122,11 +122,11 @@ class ManualSourceIterators:
     def low_cutoff(self):
         return [1]
 
-    def mean_potential(self):
-        return [0.5, 1, 2, 3, 5]
+    def cutoff_mean(self):
+        return [0.75, 1.5, 2.5, 3.5, 5]
 
-    def mean_spread(self):
-        return [0.2]
+    def cutoff_deviation(self):
+        return [0.4]
 
     def max_coins_to_buy(self):
         return [4]
@@ -134,17 +134,18 @@ class ManualSourceIterators:
 
 class ManualSuccessIterators:
     def percentage_increase(self):
-        return [0.05]
+        return [0.035, 0.05, 0.065]
         # return np.arange(0.025, 0.1, 0.05)
 
     def percentge_reduction(self):
         return [0]
 
     def days_to_run(self):
+        # Manually set this from largest to smallest for cache purposes
         return [
-            # timedelta(days=12),
-            #     timedelta(days=12),
+            timedelta(days=24),
                 timedelta(days=20),
+                timedelta(days=12),
                 # timedelta(days=24),
                 # timedelta(days=28),
                 # timedelta(days=32)
