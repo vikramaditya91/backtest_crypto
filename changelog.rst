@@ -5,6 +5,7 @@ Changelog
 -------------------
  * bugfix/coin not present in future not considered for buying
  * Cutoff values can be set as mean-values
+ * Cache filtering of valid history coins
 
 1.1b0 (2020-Dec-xx)
 -------------------

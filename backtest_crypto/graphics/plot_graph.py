@@ -105,6 +105,7 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
     def set_labels(self,
                    axis,
                    surface_graph_axes):
+        # TODO Terrible way to do it
         if "time_intervals" in surface_graph_axes:
             axis.set_xlabel(surface_graph_axes[1])
             axis.set_ylabel(surface_graph_axes[0])

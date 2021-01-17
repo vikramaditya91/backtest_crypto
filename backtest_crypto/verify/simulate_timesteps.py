@@ -49,11 +49,6 @@ class MarketBuyLimitSellSimulationCreator(AbstractTimeStepSimulateCreator):
         return MarketBuyLimitSellSimulatorConcrete(*args, **kwargs)
 
 
-class ValidPotentialCoins:
-    def __init__(self):
-        a = 1
-
-
 class AbstractTimestepSimulatorConcrete(ABC):
     _shared_state = {}
 
@@ -300,8 +295,8 @@ class AbstractTimestepSimulatorConcrete(ABC):
         return holdings
 
     def add_valid_coins_with_history(self,
-                                     start_time,
-                                     end_time):
+                                     start_time: datetime.datetime,
+                                     end_time: datetime.datetime) -> None:
         simple_history = get_simple_history(self.history_access,
                                             start_time,
                                             end_time,
@@ -312,24 +307,24 @@ class AbstractTimestepSimulatorConcrete(ABC):
         self.coins_with_valid_history[start_time, end_time] = sufficient_history_coins
 
     def get_cached_history(self,
-                                history_start,
-                                history_end,
-                                ):
+                           history_start: datetime.datetime,
+                           history_end: datetime.datetime,
+                           ) -> List:
         for start, end in self.coins_with_valid_history.keys():
             if (start <= history_start) and (end >= history_end):
                 return self.coins_with_valid_history[start, end]
         raise ValueError
 
     def get_coins_with_sufficient_history(self,
-                                          history_start,
-                                          history_end,
-                                          cache_padding=datetime.timedelta(days=5)):
+                                          history_start: datetime.datetime,
+                                          history_end: datetime.datetime,
+                                          cache_padding: datetime.timedelta = datetime.timedelta(days=5)):
         try:
             return self.get_cached_history(history_start,
                                            history_end)
         except ValueError:
             self.add_valid_coins_with_history(history_start,
-                                              history_end+cache_padding)
+                                              history_end + cache_padding)
         return self.get_coins_with_sufficient_history(history_start,
                                                       history_end)
 
@@ -345,7 +340,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
     def get_valid_potential_coin_to_buy(self,
                                         simulation_input_dict: Dict,
                                         simulation_start: datetime.datetime,
-                                        simulation_at:datetime.datetime) -> List:
+                                        simulation_at: datetime.datetime) -> List:
         try:
             potential_coins = self.potential_coin_client.get_potential_coin_at(
                 consider_history=(simulation_start, simulation_at),
@@ -359,7 +354,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
             filtered_coins = self.filter_coins_with_history(
                 coins=list(potential_coins),
                 history_start=simulation_at,
-                history_end=simulation_at+simulation_input_dict["days_to_run"],
+                history_end=simulation_at + simulation_input_dict["days_to_run"],
             )
             return filtered_coins
 
