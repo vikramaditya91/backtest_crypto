@@ -73,9 +73,9 @@ class PotentialCoinClient:
         return False
 
     def filter_potential(self,
-                         original_dict,
-                         potential_coin_strategy,
-                         ):
+                         original_dict: Dict,
+                         potential_coin_strategy: Dict,
+                         ) -> Dict:
         lower_cutoff, higher_cutoff = self.get_low_high_cutoff(potential_coin_strategy)
         return dict(filter(lambda x: lower_cutoff < x[1] < higher_cutoff, original_dict.items()))
 
