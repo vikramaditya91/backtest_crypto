@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+
 import numpy as np
 from matplotlib import cm
 from matplotlib import pyplot as plt
+
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 
 
@@ -40,7 +42,7 @@ class AbstractGraphConcrete(ABC):
             list_of_items = list(map(lambda x: x.to_pytimedelta().days, list_of_items))
         # TODO Very broad condition
         if all(isinstance(
-            item, str
+                item, str
         ) for item in list_of_items):
             list_of_items = TimeIntervalIterator.get_time_interval_list(list_of_items)
         return np.tile(list_of_items, [multiplier, 1]).transpose()
@@ -52,7 +54,8 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                      values_to_plot):
         if "time_intervals" in surface_graph_axes:
             time_index_in_axes = surface_graph_axes.index("time_intervals")
-            other_index_in_axes = surface_graph_axes.index([item for item in surface_graph_axes if item != "time_intervals"][0])
+            other_index_in_axes = surface_graph_axes.index(
+                [item for item in surface_graph_axes if item != "time_intervals"][0])
             time_index = values_to_plot.get_index(surface_graph_axes[time_index_in_axes])
             other_index = values_to_plot.get_index(surface_graph_axes[other_index_in_axes])
 
@@ -86,8 +89,8 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         )
         simulation_dataset = self.get_time_sorted_ds(simulation_dataset)
         values_to_plot = simulation_dataset[data_vars[0]].sel(standard_other_dict,
-                                                                   tolerance=0.01,
-                                                                   method="nearest")
+                                                              tolerance=0.01,
+                                                              method="nearest")
         x_axis, y_axis = self.get_x_y_axis(surface_graph_axes,
                                            values_to_plot)
 
@@ -96,6 +99,9 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                         surface_graph_axes)
         ax.set_zlabel(data_vars[0])
         # ax.set_zlim([0.85, 1.1])
+        if "time_intervals" not in surface_graph_axes:
+            values_to_plot = values_to_plot.mean(dim="time_intervals")
+
         z_axis_values = values_to_plot.copy().values
         z_axis_values.resize(len(x_axis), len(y_axis))
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
