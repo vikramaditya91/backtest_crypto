@@ -96,6 +96,9 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                         surface_graph_axes)
         ax.set_zlabel(data_vars[0])
         # ax.set_zlim([0.85, 1.1])
+        if "time_intervals" not in surface_graph_axes:
+            values_to_plot = values_to_plot.mean(dim="time_intervals")
+
         z_axis_values = values_to_plot.copy().values
         z_axis_values.resize(len(x_axis), len(y_axis))
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
