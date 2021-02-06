@@ -1,6 +1,7 @@
 import datetime
 from enum import Enum
 from dataclasses import dataclass
+from typing import Optional
 
 
 class Singleton (type):
@@ -22,13 +23,6 @@ class OrderType(Enum):
     Limit = 1
 
 
-@dataclass
-class HoldingCoin:
-    coin_name: str
-    quantity: float
-    locked: bool
-
-
 class OrderFill(Enum):
     Fresh = 0
     Partial = 1
@@ -46,6 +40,13 @@ class Order:
     stop_price: float
     timeout: datetime.datetime
     complete: OrderFill
+
+
+@dataclass
+class HoldingCoin:
+    coin_name: str
+    quantity: float
+    order_instance: Optional[Order]
 
 
 class InsufficientHistory(ValueError):
