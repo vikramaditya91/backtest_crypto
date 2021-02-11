@@ -60,7 +60,8 @@ class AbstractTimestepSimulatorConcrete(ABC):
             self.overall_history_dict = {}
             self.maximum_history_dict = {}
             self.coins_with_valid_history = {}
-            self.dust = []
+            self.dust = {}
+            self.standard_prices = {}
         self.ohlcv_field = ohlcv_field
         self.history_access = history_access
         self.potential_coin_client = potential_coin_client
@@ -70,12 +71,13 @@ class AbstractTimestepSimulatorConcrete(ABC):
         self.trade_executed = 0
         self.live_orders = []
         self.banned_coins = {}
-        self.insignificant_dust = 0.001
         self.order_operations = OrderOperations()
         self.holding_operations = HoldingOperations(self.reference_coin,
                                                     self.tolerance,
                                                     self.history_access,
-                                                    self.candle)
+                                                    self.candle,
+                                                    self.dust,
+                                                    self.standard_prices)
         self.potential_identification = PotentialIdentification(self.history_access,
                                                                 self.potential_coin_client,
                                                                 self.candle,
@@ -149,17 +151,17 @@ class AbstractTimestepSimulatorConcrete(ABC):
         for altcoin_index in range(altcoins_number_to_buy):
             if not potential_valid_altcoin_not_held:
                 continue
-            buy_order = self._set_individual_buy_order(holdings,
-                                           simulation_input_dict,
-                                           potential_valid_altcoin_not_held,
-                                           instant_price_dict,
-                                           current_time,
-                                           order_type)
-            self.holding_operations.lock_holding(holdings,
-                                                        buy_order)
-            self.live_orders.append(buy_order)
-
-
+            if self.holding_operations.unlocked_coin_avl(holdings,
+                                                         self.reference_coin) > self.tolerance:
+                buy_order = self._set_individual_buy_order(holdings,
+                                                           simulation_input_dict,
+                                                           potential_valid_altcoin_not_held,
+                                                           instant_price_dict,
+                                                           current_time,
+                                                           order_type)
+                self.holding_operations.lock_holding(holdings,
+                                                     buy_order)
+                self.live_orders.append(buy_order)
 
     def _set_individual_buy_order(self,
                                   holdings: Holdings,
@@ -170,16 +172,16 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                   order_type):
         if order_type == OrderType.Limit:
             return self._set_limit_buy_order(holdings,
-                                      simulation_input_dict,
-                                      potential_valid_altcoin_not_held,
-                                      instant_price_dict,
-                                      current_time)
+                                             simulation_input_dict,
+                                             potential_valid_altcoin_not_held,
+                                             instant_price_dict,
+                                             current_time)
         elif order_type == OrderType.Market:
             return self._set_limit_buy_order(holdings,
-                                      simulation_input_dict,
-                                      potential_valid_altcoin_not_held,
-                                      instant_price_dict,
-                                      current_time)
+                                             simulation_input_dict,
+                                             potential_valid_altcoin_not_held,
+                                             instant_price_dict,
+                                             current_time)
         else:
             raise NotImplementedError
 
@@ -193,7 +195,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
         max_ref_coin_in_order = 1 / simulation_input_dict["max_coins_to_buy"]
 
         ref_qty_available = self.holding_operations.get_coin_qty(holdings,
-                                                             self.reference_coin)
+                                                                 self.reference_coin)
         if ref_qty_available > max_ref_coin_in_order:
             ref_qty_available = max_ref_coin_in_order
         coin_to_buy = random.choice(potential_valid_altcoin_not_held)
@@ -203,15 +205,15 @@ class AbstractTimestepSimulatorConcrete(ABC):
         qty_of_altcoin_to_buy = ref_qty_available / buying_price
 
         return Order(order_side=OrderSide.Buy,
-                  order_type=OrderType.Limit,
-                  quantity=qty_of_altcoin_to_buy,
-                  base_asset=coin_to_buy,
-                  reference_coin=self.reference_coin,
-                  stop_price=-1,
-                  timeout=current_time,
-                  limit_price=buying_price,
-                  complete=OrderFill.Fresh
-                  )
+                     order_type=OrderType.Limit,
+                     quantity=qty_of_altcoin_to_buy,
+                     base_asset=coin_to_buy,
+                     reference_coin=self.reference_coin,
+                     stop_price=-1,
+                     timeout=current_time,
+                     limit_price=buying_price,
+                     complete=OrderFill.Fresh
+                     )
 
     def try_execute_open_orders(self,
                                 holdings,
@@ -227,11 +229,12 @@ class AbstractTimestepSimulatorConcrete(ABC):
         except InsufficientHistory:
             return holdings
         for order in self.live_orders:
-            instance_price = instant_price_dict[f'{order.base_asset}']
-            holdings = self.order_operations._execute_individual_order(holdings,
-                                                                  order,
-                                                                  instance_price,
-                                                                  current_time)
+            if order.complete != OrderFill.Filled:
+                instance_price = instant_price_dict[f'{order.base_asset}']
+                holdings = self.order_operations.execute_individual_order(holdings,
+                                                                          order,
+                                                                          instance_price,
+                                                                          current_time)
         return holdings
 
     def remove_dead_orders(self,
@@ -246,16 +249,9 @@ class AbstractTimestepSimulatorConcrete(ABC):
             if self.order_operations.has_order_reached_timeout(order,
                                                                current_time):
                 self.holding_operations.unlock_holding(holdings,
-                                    order)
+                                                       order)
             else:
                 self.live_orders.append(order)
-
-        holding_names_held = list(holding.coin_name for holding in holdings)
-        for order in self.live_orders:
-            if order.base_asset not in holding_names_held:
-                if order.complete != OrderFill.Filled:
-                    a = 1
-
 
     def buy_altcoin_overall(self,
                             holdings,
@@ -317,14 +313,14 @@ class AbstractTimestepSimulatorConcrete(ABC):
                     if holding.coin_name != self.reference_coin:
                         if holding.order_instance is None:
                             sell_order = self._set_sell_order_on_holding(holding,
-                                                            instance_price_dict[holding.coin_name],
-                                                            simulation_input_dict,
-                                                            current_time,
-                                                            order_type)
+                                                                         instance_price_dict[holding.coin_name],
+                                                                         simulation_input_dict,
+                                                                         current_time,
+                                                                         order_type)
 
                             self.holding_operations.lock_holding(holdings,
-                                                                        sell_order,
-                                                                        )
+                                                                 sell_order,
+                                                                 )
                             self.live_orders.append(sell_order)
 
 
@@ -409,17 +405,42 @@ class PotentialIdentification:
 
 
 class HoldingOperations:
-    def __init__(self, reference_coin, tolerance, history_access, candle):
+    def __init__(self, reference_coin, tolerance, history_access, candle, dust, standard_prices):
         self.reference_coin = reference_coin
         self.tolerance = tolerance
         self.history_access = history_access
         self.candle = candle
+        self.dust = dust
         self.order_operations = OrderOperations()
+        self.standard_prices = standard_prices
+
+    def get_standard_price(self,
+                           coin_name,
+                           current_time):
+        try:
+            return self.standard_prices[coin_name]
+        except KeyError as e:
+            self.standard_prices = self.get_instantaneous_worth(current_time)
+            try:
+                return self.standard_prices[coin_name]
+            except KeyError as e:
+                return 1
 
     def remove_insignificant_dust(self,
-                                  holdings: Holdings):
-        holdings = [holding for holding in holdings if holding.quantity>self.tolerance]
-        return holdings
+                                  holdings: Holdings,
+                                  current_time):
+        significant_holdings = []
+        for holding in holdings:
+            equivalent_value = holding.quantity * self.get_standard_price(holding.coin_name,
+                                                                          current_time)
+            if equivalent_value > self.tolerance:
+                significant_holdings.append(holding)
+            else:
+                if holding.coin_name in self.dust.keys():
+                    self.dust[holding.coin_name] += holding.quantity
+                else:
+                    self.dust[holding.coin_name] = holding.quantity
+        return significant_holdings
 
     def lock_holding(self,
                      holdings: Holdings,
@@ -432,26 +453,25 @@ class HoldingOperations:
         for holding_index in range(len(holdings)):
             holding = holdings[holding_index]
             if (holding.coin_name == replace[0]) and \
-                ((holding.quantity + self.tolerance) > replace[1]) and \
-                (holding.order_instance is None):
+                    ((holding.quantity + self.tolerance) > replace[1]) and \
+                    (holding.order_instance is None):
                 holding.quantity = holding.quantity - replace[1]
-                self.order_operations.add_item_to_holdings(holdings,
+                added_holding = self.order_operations.add_item_to_holdings(holdings,
                                                            replace,
                                                            order_instance=order)
                 return
         raise InsufficientBalance(f"Could not lock {order} as the holdings are only {holdings}")
 
-
     def unlock_holding(self,
-                                   holdings: Holdings,
-                                   order):
+                       holdings: Holdings,
+                       order):
         for holding_index in range(len(holdings)):
             holding = holdings[holding_index]
             if holding.order_instance == order:
                 holding.order_instance = None
                 holdings.remove(holding)
                 if order.order_side == OrderSide.Buy:
-                    replace = [self.reference_coin, order.quantity*order.limit_price]
+                    replace = [self.reference_coin, order.quantity * order.limit_price]
                 else:
                     replace = [order.base_asset, order.quantity]
                 self.order_operations.add_item_to_holdings(holdings,
@@ -496,15 +516,14 @@ class HoldingOperations:
                           simulation_time,
                           simulation_input_dict):
         try:
-            if (simulation_time.day % 15) == 0 and (simulation_time.hour == 1):
+            if (simulation_time.day % 1) == 0 and (simulation_time.hour == 1):
                 logger.debug(f"Holdings are worth"
                              f" {self.get_total_holding_worth(holdings, simulation_time)} "
-                             f"at {simulation_time} ------- {simulation_input_dict}")
+                             f"at {simulation_time} ------- {holdings} --- {simulation_input_dict}")
         except InsufficientHistory as e:
             pass
 
-    def get_total_holding_worth(self,
-                                holdings,
+    def get_instantaneous_worth(self,
                                 current_time):
         try:
             instance_price_dict = get_instantaneous_history(self.history_access,
@@ -513,22 +532,27 @@ class HoldingOperations:
                                                             )
             instance_price_dict[self.reference_coin] = 1
         except InsufficientHistory as e:
-            return None
-        else:
-            total_holding = functools.reduce(
-                lambda x, y: x + y.quantity * instance_price_dict[y.coin_name],
+            return {}
+        return instance_price_dict
+
+    def get_total_holding_worth(self,
+                                holdings,
+                                current_time):
+        instant_price_dict = self.get_instantaneous_worth(current_time)
+        try:
+            return functools.reduce(
+                lambda x, y: x + y.quantity * instant_price_dict[y.coin_name],
                 holdings, 0)
-        return total_holding
+        except KeyError as e:
+            return 0
 
 
 class OrderOperations:
-    insignificant_dust = 0.001
-
-    def _execute_individual_order(self,
-                                  holdings,
-                                  order: Order,
-                                  current_price: float,
-                                  current_time: datetime.datetime):
+    def execute_individual_order(self,
+                                 holdings,
+                                 order: Order,
+                                 current_price: float,
+                                 current_time: datetime.datetime):
         add, remove = self._get_add_remove_holdings(order,
                                                     current_price,
                                                     current_time)
@@ -563,7 +587,7 @@ class OrderOperations:
             if order.order_side == OrderSide.Buy:
                 remove = (order.reference_coin, order.quantity * current_price)
                 add = (order.base_asset, order.quantity)
-            elif order.order_side ==  OrderSide.Sell:
+            elif order.order_side == OrderSide.Sell:
                 add = (order.reference_coin, order.quantity * current_price)
                 remove = (order.base_asset, order.quantity)
         elif order.order_type == OrderType.Limit:
@@ -588,26 +612,20 @@ class OrderOperations:
                     if holding.order_instance is None:
                         holding.quantity = holding.quantity + add[1]
                         return holding
-                    else:
-                        holding.quantity = holding.quantity + add[1]
-                        return holding
         added_holding = HoldingCoin(coin_name=add[0],
                                     quantity=add[1],
                                     order_instance=order_instance)
         holdings.append(added_holding)
         return added_holding
 
-    def remove_item_from_holdings(self,
-                                  holdings: Holdings,
+    @staticmethod
+    def remove_item_from_holdings(holdings: Holdings,
                                   order_instance):
         for holding_index in range(len(holdings)):
             if holdings[holding_index].order_instance == order_instance:
                 holdings.pop(holding_index)
                 return
         raise InsufficientBalance(f"Did not have {order_instance} to remove from holdings {holdings}")
-
-
-
 
 
 class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
@@ -619,17 +637,15 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
         self.holding_operations.log_holding_value(holdings,
                                                   simulation_at,
                                                   simulation_input_dict)
-
         self.buy_altcoin_overall(holdings,
                                  simulation_input_dict,
                                  simulation_start,
                                  simulation_at,
                                  order_type=OrderType.Market
                                  )
+
         holdings = self.try_execute_open_orders(holdings,
                                                 simulation_at)
-        self.remove_dead_orders(holdings,
-                                current_time=simulation_at)
         self.sell_altcoin_overall(holdings,
                                   simulation_at,
                                   simulation_input_dict,
@@ -637,9 +653,11 @@ class MarketBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
 
         holdings = self.try_execute_open_orders(holdings,
                                                 simulation_at)
+
+        holdings = self.holding_operations.remove_insignificant_dust(holdings,
+                                                                     simulation_at)
         self.remove_dead_orders(holdings,
                                 current_time=simulation_at)
-        holdings = self.holding_operations.remove_insignificant_dust(holdings)
         return holdings
 
 

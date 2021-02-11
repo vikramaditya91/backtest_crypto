@@ -138,7 +138,7 @@ class ManualSuccessIterators:
         # return np.arange(0.025, 0.1, 0.05)
 
     def percentage_reduction(self):
-        return [0.01]
+        return [0, 0.01]
 
     def days_to_run(self):
         # Manually set this from largest to smallest for cache purposes
