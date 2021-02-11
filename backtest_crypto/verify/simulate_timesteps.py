@@ -123,6 +123,18 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                                 set(self.banned_coins))
         return potential_valid_altcoin_not_held
 
+    def get_altcoins_numbers_to_buy(self,
+                                    simulation_input_dict,
+                                    holdings
+                                    ):
+        max_ref_coin_in_order = 1 / simulation_input_dict["max_coins_to_buy"]
+
+        quantity_of_ref_avl = self.holding_operations.unlocked_coin_avl(holdings,
+                                                                        self.reference_coin)
+        altcoin_holdings_held = len(list(filter(lambda x: x.coin_name != self.reference_coin, holdings)))
+
+        return math.ceil(quantity_of_ref_avl / max_ref_coin_in_order) - altcoin_holdings_held
+
     def set_buy_orders_reference_to_alt(self,
                                         holdings,
                                         current_time,
@@ -137,22 +149,19 @@ class AbstractTimestepSimulatorConcrete(ABC):
         except InsufficientHistory:
             return
 
-        max_ref_coin_in_order = 1 / simulation_input_dict["max_coins_to_buy"]
-        quantity_of_ref_avl = self.holding_operations.unlocked_coin_avl(holdings,
-                                                                        self.reference_coin)
-        altcoin_holdings_held = len(list(filter(lambda x: x.coin_name != self.reference_coin, holdings)))
-
-        altcoins_number_to_buy = math.ceil(quantity_of_ref_avl / max_ref_coin_in_order) - altcoin_holdings_held
-
+        altcoins_number_to_buy = self.get_altcoins_numbers_to_buy(simulation_input_dict,
+                                                                  holdings,
+                                                                  )
         potential_valid_altcoin_not_held = self.get_potential_valid_altcoins_no_held(potential_coins,
                                                                                      instant_price_dict,
                                                                                      holdings)
 
-        for altcoin_index in range(altcoins_number_to_buy):
+        for _ in range(altcoins_number_to_buy):
             if not potential_valid_altcoin_not_held:
-                continue
-            if self.holding_operations.unlocked_coin_avl(holdings,
-                                                         self.reference_coin) > self.tolerance:
+                return
+
+            if (self.holding_operations.unlocked_coin_avl(holdings,
+                                                            self.reference_coin) > self.tolerance):
                 buy_order = self._set_individual_buy_order(holdings,
                                                            simulation_input_dict,
                                                            potential_valid_altcoin_not_held,
@@ -165,53 +174,71 @@ class AbstractTimestepSimulatorConcrete(ABC):
 
     def _set_individual_buy_order(self,
                                   holdings: Holdings,
-                                  simulation_input_dict,
-                                  potential_valid_altcoin_not_held,
-                                  instant_price_dict,
-                                  current_time,
-                                  order_type):
+                                  simulation_input_dict: Dict,
+                                  potential_valid_altcoin_not_held: List,
+                                  instant_price_dict: Dict,
+                                  current_time: datetime.datetime,
+                                  order_type: OrderType):
+        random_coin = self._random_coin_to_buy(potential_valid_altcoin_not_held)
+        ref_qty_available = self._ref_qty_available(holdings,
+                                                    simulation_input_dict["max_coins_to_buy"])
         if order_type == OrderType.Limit:
-            return self._set_limit_buy_order(holdings,
-                                             simulation_input_dict,
-                                             potential_valid_altcoin_not_held,
-                                             instant_price_dict,
-                                             current_time)
+            buy_price = self._get_limit_buy_price_coin(instant_price_dict,
+                                                       random_coin,
+                                                       simulation_input_dict["percentage_reduction"])
         elif order_type == OrderType.Market:
-            return self._set_limit_buy_order(holdings,
-                                             simulation_input_dict,
-                                             potential_valid_altcoin_not_held,
-                                             instant_price_dict,
-                                             current_time)
+            buy_price = self._get_limit_buy_price_coin(instant_price_dict,
+                                                       random_coin,
+                                                       0)
         else:
             raise NotImplementedError
 
-    def _set_limit_buy_order(self,
-                             holdings,
-                             simulation_input_dict,
-                             potential_valid_altcoin_not_held,
-                             instant_price_dict,
-                             current_time
-                             ):
-        max_ref_coin_in_order = 1 / simulation_input_dict["max_coins_to_buy"]
+        return self._set_limit_buy_order(random_coin,
+                                         buy_price,
+                                         ref_qty_available,
+                                         current_time)
+
+    @staticmethod
+    def _get_limit_buy_price_coin(
+            instant_price_dict,
+            coin_to_buy,
+            percentage_reduction):
+        altcoin_current_price = instant_price_dict[coin_to_buy]
+        return altcoin_current_price * (1 - percentage_reduction)
+
+    def _ref_qty_available(self,
+                           holdings,
+                           max_coins_to_buy):
+        max_ref_coin_in_order = 1 / max_coins_to_buy
 
         ref_qty_available = self.holding_operations.get_coin_qty(holdings,
                                                                  self.reference_coin)
         if ref_qty_available > max_ref_coin_in_order:
             ref_qty_available = max_ref_coin_in_order
-        coin_to_buy = random.choice(potential_valid_altcoin_not_held)
-        potential_valid_altcoin_not_held.remove(coin_to_buy)
-        altcoin_current_price = instant_price_dict[coin_to_buy]
-        buying_price = altcoin_current_price * (1 - simulation_input_dict["percentage_reduction"])
-        qty_of_altcoin_to_buy = ref_qty_available / buying_price
+        return ref_qty_available
+
+    @staticmethod
+    def _random_coin_to_buy(coin_list):
+        coin_to_buy = random.choice(coin_list)
+        coin_list.remove(coin_to_buy)
+        return coin_to_buy
+
+    def _set_limit_buy_order(self,
+                             random_coin,
+                             buy_price,
+                             ref_qty_available,
+                             current_time
+                             ):
+        qty_of_altcoin_to_buy = ref_qty_available / buy_price
 
         return Order(order_side=OrderSide.Buy,
                      order_type=OrderType.Limit,
                      quantity=qty_of_altcoin_to_buy,
-                     base_asset=coin_to_buy,
+                     base_asset=random_coin,
                      reference_coin=self.reference_coin,
                      stop_price=-1,
                      timeout=current_time,
-                     limit_price=buying_price,
+                     limit_price=buy_price,
                      complete=OrderFill.Fresh
                      )
 
@@ -420,7 +447,7 @@ class HoldingOperations:
         try:
             return self.standard_prices[coin_name]
         except KeyError as e:
-            self.standard_prices = self.get_instantaneous_worth(current_time)
+            self.standard_prices = self.get_instant_price_dict(current_time)
             try:
                 return self.standard_prices[coin_name]
             except KeyError as e:
@@ -457,8 +484,8 @@ class HoldingOperations:
                     (holding.order_instance is None):
                 holding.quantity = holding.quantity - replace[1]
                 added_holding = self.order_operations.add_item_to_holdings(holdings,
-                                                           replace,
-                                                           order_instance=order)
+                                                                           replace,
+                                                                           order_instance=order)
                 return
         raise InsufficientBalance(f"Could not lock {order} as the holdings are only {holdings}")
 
@@ -523,22 +550,22 @@ class HoldingOperations:
         except InsufficientHistory as e:
             pass
 
-    def get_instantaneous_worth(self,
-                                current_time):
+    def get_instant_price_dict(self,
+                               current_time):
         try:
             instance_price_dict = get_instantaneous_history(self.history_access,
                                                             current_time,
                                                             candle=self.candle
                                                             )
             instance_price_dict[self.reference_coin] = 1
-        except InsufficientHistory as e:
+        except InsufficientHistory:
             return {}
         return instance_price_dict
 
     def get_total_holding_worth(self,
                                 holdings,
                                 current_time):
-        instant_price_dict = self.get_instantaneous_worth(current_time)
+        instant_price_dict = self.get_instant_price_dict(current_time)
         try:
             return functools.reduce(
                 lambda x, y: x + y.quantity * instant_price_dict[y.coin_name],
