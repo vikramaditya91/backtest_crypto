@@ -6,11 +6,11 @@ import random
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-from backtest_crypto.history_collect.gather_history import get_instantaneous_history, get_simple_history
-from backtest_crypto.utilities.general import InsufficientHistory, \
-    MissingPotentialCoinTimeIndexError, InsufficientBalance, Order, HoldingCoin, OrderType, OrderSide, \
-    OrderFill
+from backtest_crypto.history_collect.gather_history import get_instantaneous_history
+from backtest_crypto.utilities.general import InsufficientHistory,\
+    InsufficientBalance, Order, HoldingCoin, OrderType, OrderSide, OrderFill
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
+from backtest_crypto.verify.identify_potential_coins import PotentialIdentification
 
 logger = logging.getLogger(__name__)
 Holdings = List[HoldingCoin]
@@ -132,7 +132,6 @@ class AbstractTimestepSimulatorConcrete(ABC):
         quantity_of_ref_avl = self.holding_operations.unlocked_coin_avl(holdings,
                                                                         self.reference_coin)
         altcoin_holdings_held = len(list(filter(lambda x: x.coin_name != self.reference_coin, holdings)))
-
         return math.ceil(quantity_of_ref_avl / max_ref_coin_in_order) - altcoin_holdings_held
 
     def set_buy_orders_reference_to_alt(self,
@@ -160,8 +159,8 @@ class AbstractTimestepSimulatorConcrete(ABC):
             if not potential_valid_altcoin_not_held:
                 return
 
-            if (self.holding_operations.unlocked_coin_avl(holdings,
-                                                            self.reference_coin) > self.tolerance):
+            if self.holding_operations.unlocked_coin_avl(holdings,
+                                                         self.reference_coin) > self.tolerance:
                 buy_order = self._set_individual_buy_order(holdings,
                                                            simulation_input_dict,
                                                            potential_valid_altcoin_not_held,
@@ -333,7 +332,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                                                 current_time,
                                                                 candle=self.candle
                                                                 )
-            except InsufficientHistory as e:
+            except InsufficientHistory:
                 logger.debug(f"History not present in {current_time}")
             else:
                 for holding in holdings:
@@ -351,86 +350,6 @@ class AbstractTimestepSimulatorConcrete(ABC):
                             self.live_orders.append(sell_order)
 
 
-class PotentialIdentification:
-    def __init__(self,
-                 history_access,
-                 potential_coin_client,
-                 candle,
-                 ohlcv_field,
-                 reference_coin,
-                 coins_with_valid_history):
-        self.history_access = history_access
-        self.potential_coin_client = potential_coin_client
-        self.candle = candle
-        self.ohlcv_field = ohlcv_field
-        self.reference_coin = reference_coin
-        self.coins_with_valid_history = coins_with_valid_history
-
-    def get_cached_history(self,
-                           history_start: datetime.datetime,
-                           history_end: datetime.datetime,
-                           ) -> List:
-        for start, end in self.coins_with_valid_history.keys():
-            if (start <= history_start) and (end >= history_end):
-                return self.coins_with_valid_history[start, end]
-        raise ValueError
-
-    def get_valid_potential_coin_to_buy(self,
-                                        simulation_input_dict: Dict,
-                                        simulation_start: datetime.datetime,
-                                        simulation_at: datetime.datetime) -> List:
-        try:
-            potential_coins = self.potential_coin_client.get_potential_coin_at(
-                consider_history=(simulation_start, simulation_at),
-                potential_coin_strategy={**simulation_input_dict,
-                                         "ohlcv_field": self.ohlcv_field,
-                                         "reference_coin": self.reference_coin}
-            )
-        except MissingPotentialCoinTimeIndexError:
-            return []
-        else:
-            filtered_coins = self.filter_coins_with_history(
-                coins=list(potential_coins),
-                history_start=simulation_at,
-                history_end=simulation_at + simulation_input_dict["days_to_run"],
-            )
-            return filtered_coins
-
-    def filter_coins_with_history(self,
-                                  coins: List,
-                                  history_start: datetime.datetime,
-                                  history_end: datetime.datetime,
-                                  ) -> List:
-        sufficient_history_coins = self.get_coins_with_sufficient_history(history_start,
-                                                                          history_end)
-        return list(set(coins).intersection(set(sufficient_history_coins)))
-
-    def get_coins_with_sufficient_history(self,
-                                          history_start: datetime.datetime,
-                                          history_end: datetime.datetime,
-                                          cache_padding: datetime.timedelta = datetime.timedelta(days=5)):
-        try:
-            return self.get_cached_history(history_start,
-                                           history_end)
-        except ValueError:
-            self.add_valid_coins_with_history(history_start,
-                                              history_end + cache_padding)
-        return self.get_coins_with_sufficient_history(history_start,
-                                                      history_end)
-
-    def add_valid_coins_with_history(self,
-                                     start_time: datetime.datetime,
-                                     end_time: datetime.datetime) -> None:
-        simple_history = get_simple_history(self.history_access,
-                                            start_time,
-                                            end_time,
-                                            self.candle)
-        particular_history = simple_history.sel({"ohlcv_fields": self.ohlcv_field})
-        nan_values = particular_history.isnull().sum(axis=1)
-        sufficient_history_coins = nan_values.where(lambda x: x == 0, drop=True).base_assets.values.tolist()
-        self.coins_with_valid_history[start_time, end_time] = sufficient_history_coins
-
-
 class HoldingOperations:
     def __init__(self, reference_coin, tolerance, history_access, candle, dust, standard_prices):
         self.reference_coin = reference_coin
@@ -446,11 +365,11 @@ class HoldingOperations:
                            current_time):
         try:
             return self.standard_prices[coin_name]
-        except KeyError as e:
+        except KeyError:
             self.standard_prices = self.get_instant_price_dict(current_time)
             try:
                 return self.standard_prices[coin_name]
-            except KeyError as e:
+            except KeyError:
                 return 1
 
     def remove_insignificant_dust(self,
@@ -507,8 +426,8 @@ class HoldingOperations:
                 return
         raise InsufficientBalance(f"Could not unlock {order} as the holdings are only {holdings}")
 
-    def unlocked_coin_avl(self,
-                          holdings: Holdings,
+    @staticmethod
+    def unlocked_coin_avl(holdings: Holdings,
                           coin_name: str):
         for holding in holdings:
             if holding.coin_name == coin_name:

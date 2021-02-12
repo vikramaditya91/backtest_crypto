@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import logging
+import pandas as pd
+import datetime
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from datetime import timedelta
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
-import pandas as pd
+
 from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, \
     identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
 
-from backtest_crypto.history_collect.gather_history import get_merged_history
+from backtest_crypto.history_collect.gather_history import get_merged_history, get_simple_history
 from backtest_crypto.utilities.data_structs import time_interval_iterator_to_pd_multiindex
 from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinTimeIndexError
 
@@ -275,3 +277,84 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
             )
         return identify_oversold.IdentifyOversold.get_last_timestamp_values(dataset_normalized_coins,
                                                                             normalized_field)
+
+
+
+class PotentialIdentification:
+    def __init__(self,
+                 history_access,
+                 potential_coin_client,
+                 candle,
+                 ohlcv_field,
+                 reference_coin,
+                 coins_with_valid_history):
+        self.history_access = history_access
+        self.potential_coin_client = potential_coin_client
+        self.candle = candle
+        self.ohlcv_field = ohlcv_field
+        self.reference_coin = reference_coin
+        self.coins_with_valid_history = coins_with_valid_history
+
+    def get_cached_history(self,
+                           history_start: datetime.datetime,
+                           history_end: datetime.datetime,
+                           ) -> List:
+        for start, end in self.coins_with_valid_history.keys():
+            if (start <= history_start) and (end >= history_end):
+                return self.coins_with_valid_history[start, end]
+        raise ValueError
+
+    def get_valid_potential_coin_to_buy(self,
+                                        simulation_input_dict: Dict,
+                                        simulation_start: datetime.datetime,
+                                        simulation_at: datetime.datetime) -> List:
+        try:
+            potential_coins = self.potential_coin_client.get_potential_coin_at(
+                consider_history=(simulation_start, simulation_at),
+                potential_coin_strategy={**simulation_input_dict,
+                                         "ohlcv_field": self.ohlcv_field,
+                                         "reference_coin": self.reference_coin}
+            )
+        except MissingPotentialCoinTimeIndexError:
+            return []
+        else:
+            filtered_coins = self.filter_coins_with_history(
+                coins=list(potential_coins),
+                history_start=simulation_at,
+                history_end=simulation_at + simulation_input_dict["days_to_run"],
+            )
+            return filtered_coins
+
+    def filter_coins_with_history(self,
+                                  coins: List,
+                                  history_start: datetime.datetime,
+                                  history_end: datetime.datetime,
+                                  ) -> List:
+        sufficient_history_coins = self.get_coins_with_sufficient_history(history_start,
+                                                                          history_end)
+        return list(set(coins).intersection(set(sufficient_history_coins)))
+
+    def get_coins_with_sufficient_history(self,
+                                          history_start: datetime.datetime,
+                                          history_end: datetime.datetime,
+                                          cache_padding: datetime.timedelta = datetime.timedelta(days=5)):
+        try:
+            return self.get_cached_history(history_start,
+                                           history_end)
+        except ValueError:
+            self.add_valid_coins_with_history(history_start,
+                                              history_end + cache_padding)
+        return self.get_coins_with_sufficient_history(history_start,
+                                                      history_end)
+
+    def add_valid_coins_with_history(self,
+                                     start_time: datetime.datetime,
+                                     end_time: datetime.datetime) -> None:
+        simple_history = get_simple_history(self.history_access,
+                                            start_time,
+                                            end_time,
+                                            self.candle)
+        particular_history = simple_history.sel({"ohlcv_fields": self.ohlcv_field})
+        nan_values = particular_history.isnull().sum(axis=1)
+        sufficient_history_coins = nan_values.where(lambda x: x == 0, drop=True).base_assets.values.tolist()
+        self.coins_with_valid_history[start_time, end_time] = sufficient_history_coins
