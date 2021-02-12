@@ -462,7 +462,7 @@ class HoldingOperations:
                           simulation_time,
                           simulation_input_dict):
         try:
-            if (simulation_time.day % 1) == 0 and (simulation_time.hour == 1):
+            if (simulation_time.day % 5) == 0 and (simulation_time.hour == 1):
                 logger.debug(f"Holdings are worth"
                              f" {self.get_total_holding_worth(holdings, simulation_time)} "
                              f"at {simulation_time} ------- {holdings} --- {simulation_input_dict}")
