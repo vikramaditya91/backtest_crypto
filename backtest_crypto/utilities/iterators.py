@@ -123,7 +123,7 @@ class ManualSourceIterators:
         return [1]
 
     def cutoff_mean(self):
-        return [0.75, 1.5, 2.5, 3.5, 5]
+        return [1.5, 5]
 
     def cutoff_deviation(self):
         return [0.2]
@@ -134,18 +134,18 @@ class ManualSourceIterators:
 
 class ManualSuccessIterators:
     def percentage_increase(self):
-        return [0.035, 0.05, 0.065]
+        return [0.05]
         # return np.arange(0.025, 0.1, 0.05)
 
-    def percentge_reduction(self):
-        return [0]
+    def percentage_reduction(self):
+        return [0, 0.01]
 
     def days_to_run(self):
         # Manually set this from largest to smallest for cache purposes
         return [
-            timedelta(days=24),
-                timedelta(days=20),
-                timedelta(days=12),
+            timedelta(days=1),
+                # timedelta(days=20),
+                # timedelta(days=12),
                 # timedelta(days=24),
                 # timedelta(days=28),
                 # timedelta(days=32)

@@ -10,7 +10,7 @@ from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
 from backtest_crypto.verify import gather_overall
-from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator
+from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator, LimitBuyLimitSellSimulationCreator
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "150d"
+    interval = "200d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -58,6 +58,7 @@ def main():
                  ],
                  "success": [
                      success_iterators.percentage_increase,
+                     success_iterators.percentage_reduction,
                      success_iterators.days_to_run
                  ],
                  "target": [
