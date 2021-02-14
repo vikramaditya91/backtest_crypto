@@ -10,7 +10,8 @@ from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
 from backtest_crypto.verify import gather_overall
-from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator, LimitBuyLimitSellSimulationCreator
+from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator,\
+    LimitBuyLimitSellSimulationCreator, MarketBuyTrailingSellSimulationCreator
 
 
 def main():
@@ -59,14 +60,16 @@ def main():
                  "success": [
                      success_iterators.percentage_increase,
                      success_iterators.percentage_reduction,
-                     success_iterators.days_to_run
+                     success_iterators.days_to_run,
+                     success_iterators.stop_price_sell,
+                     success_iterators.limit_sell_adjust_trail
                  ],
                  "target": [
                      "calculate_end_of_run_value"
                  ],
                  "strategy":
                      [
-                         MarketBuyLimitSellSimulationCreator
+                         MarketBuyTrailingSellSimulationCreator
                      ]
                  }
     gather_items = gather_overall.GatherSimulation(

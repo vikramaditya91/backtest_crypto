@@ -137,6 +137,12 @@ class ManualSuccessIterators:
         return [0.05]
         # return np.arange(0.025, 0.1, 0.05)
 
+    def stop_price_sell(self):
+        return [0.01, 0.02]
+
+    def limit_sell_adjust_trail(self):
+        return [0.02]
+
     def percentage_reduction(self):
         return [0, 0.01]
 
