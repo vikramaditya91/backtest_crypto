@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List
 
 from backtest_crypto.history_collect.gather_history import get_instantaneous_history
-from backtest_crypto.utilities.general import InsufficientHistory,\
+from backtest_crypto.utilities.general import InsufficientHistory, \
     InsufficientBalance, Order, HoldingCoin, OrderType, OrderSide, OrderFill, OrderScheme
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import PotentialIdentification
@@ -264,11 +264,12 @@ class AbstractTimestepSimulatorConcrete(ABC):
                 try:
                     instance_price = instant_price_dict[f'{order.base_asset}']
                     holdings = self.order_operations.execute_individual_order(holdings,
-                                                                          order,
-                                                                          instance_price,
-                                                                          current_time)
+                                                                              order,
+                                                                              instance_price,
+                                                                              current_time)
                 except KeyError as e:
-                    logger.warning(f"Price of {order.base_asset} unavailable at {current_time}. Might be leading to a timeout")
+                    logger.warning(
+                        f"Price of {order.base_asset} unavailable at {current_time}. Might be leading to a timeout")
         return holdings
 
     def remove_dead_orders(self,
@@ -383,8 +384,8 @@ class AbstractTimestepSimulatorConcrete(ABC):
                               ):
         if holding.order_instance is not None:
             if self.is_order_close_to_execution(holding,
-                                             simulation_input_dict,
-                                             instance_price_dict):
+                                                simulation_input_dict,
+                                                instance_price_dict):
                 self.live_orders.remove(holding.order_instance)
                 holding.order_instance = None
             else:
@@ -415,32 +416,24 @@ class AbstractTimestepSimulatorConcrete(ABC):
             except InsufficientHistory:
                 logger.debug(f"History not present in {current_time}")
             else:
-                for holding in self.yield_sellable_holdings(holdings):
-                    if order_scheme == OrderScheme.Limit or order_scheme == OrderScheme.Market:
-                        if holding.order_instance is None:
-                            self.limit_sell_overall(holding,
-                                                    holdings,
-                                                    instance_price_dict,
-                                                    simulation_input_dict,
-                                                    current_time,
-                                                    order_scheme)
-                    elif order_scheme == OrderScheme.Trailing:
-                        if holding.quantity > self.tolerance:
-                            self.trailing_sell_overall(holding,
-                                                    holdings,
-                                                    instance_price_dict,
-                                                    simulation_input_dict,
-                                                    current_time,
-                                                    )
-
-    def yield_sellable_holdings(self,
-                                holdings):
-        for holding in holdings:
-            if holding.coin_name != self.reference_coin:
-                yield holding
-
-
-
+                for holding in holdings:
+                    if holding.coin_name != self.reference_coin:
+                        if order_scheme == OrderScheme.Limit or order_scheme == OrderScheme.Market:
+                            if holding.order_instance is None:
+                                self.limit_sell_overall(holding,
+                                                        holdings,
+                                                        instance_price_dict,
+                                                        simulation_input_dict,
+                                                        current_time,
+                                                        order_scheme)
+                        elif order_scheme == OrderScheme.Trailing:
+                            if holding.quantity > self.tolerance:
+                                self.trailing_sell_overall(holding,
+                                                           holdings,
+                                                           instance_price_dict,
+                                                           simulation_input_dict,
+                                                           current_time,
+                                                           )
 
 
 class HoldingOperations:
