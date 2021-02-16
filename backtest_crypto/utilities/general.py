@@ -18,9 +18,16 @@ class OrderSide(Enum):
     Sell = 1
 
 
+class OrderScheme(Enum):
+    Market = 0
+    Limit = 1
+    Trailing = 2
+
+
 class OrderType(Enum):
     Market = 0
     Limit = 1
+    StopLimit = 2
 
 
 class OrderFill(Enum):
