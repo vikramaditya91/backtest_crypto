@@ -33,8 +33,8 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[2] /
-                                                    "common_db" /
+                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[4] /
+                                                    "s3_sync" / 'backtestcryptostorage' /
                                                     f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.pickled")),
                          mapped_class=OversoldCoins,
                          table_name_list=table_name_list)
@@ -73,8 +73,8 @@ def main():
     narrowed_start = datetime(day=1, month=7, year=2018)
     narrowed_end = datetime(day=17, month=11, year=2020)
     gather_items.store_potential_coins_pickled(
-        pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[1] /
-                                           "database" /
+        pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[4] /
+                                           "s3_sync" / "staging" /
                                            f"{interval}_{narrowed_start}_{narrowed_start}_potential_coins_overall.db")),
         narrowed_start_time=narrowed_start,
         narrowed_end_time=narrowed_end
