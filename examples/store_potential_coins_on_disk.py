@@ -14,11 +14,10 @@ from backtest_crypto.verify import gather_overall
 def main():
     init_logger(logging.DEBUG)
     overall_start = datetime(day=25, month=8, year=2018)
-    overall_end = datetime(day=18, month=11, year=2020)
+    overall_end = datetime(day=20, month=5, year=2021)
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "100d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -33,15 +32,13 @@ def main():
                          candle=candle,
                          reference_coin=reference_coin,
                          ohlcv_field=ohlcv_field,
-                         file_path=str(pathlib.Path(pathlib.Path(__file__).parents[4] /
-                                                    "s3_sync" / 'backtestcryptostorage' /
-                                                    f"25_Jan_2017_TO_18_Nov_2020_BTC_1h_1d.pickled")),
+                         file_path="/Users/vikram/Documents/Personal/s3_sync/25_Jan_2017_TO_23_May_2021_BTC_1h_1d.db",
                          mapped_class=OversoldCoins,
                          table_name_list=table_name_list)
 
     source_iterators = ManualSourceIterators()
 
-    interval = "50d"
+    interval = "1d"
     time_interval_iterator = TimeIntervalIterator(overall_start,
                                                   overall_end,
                                                   interval,
@@ -71,11 +68,14 @@ def main():
     )
 
     narrowed_start = datetime(day=1, month=7, year=2018)
-    narrowed_end = datetime(day=17, month=11, year=2020)
+    narrowed_end = datetime(day=20, month=5, year=2021)
     gather_items.store_potential_coins_pickled(
         pickled_file_path=str(pathlib.Path(pathlib.Path(__file__).parents[4] /
                                            "s3_sync" / "staging" /
-                                           f"{interval}_{narrowed_start}_{narrowed_start}_potential_coins_overall.db")),
+                                           f"{interval}_"
+                                           f"{narrowed_start.year}-{narrowed_start.month}-{narrowed_start.day}_"
+                                           f"{narrowed_end.year}-{narrowed_end.month}-{narrowed_end.day}_"
+                                           f"potential_coins_overall.pickle")),
         narrowed_start_time=narrowed_start,
         narrowed_end_time=narrowed_end
     )

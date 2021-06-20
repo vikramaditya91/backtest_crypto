@@ -5,10 +5,9 @@ from abc import ABC, abstractmethod
 import xarray as xr
 
 from backtest_crypto.utilities.general import InsufficientHistory, MissingPotentialCoinTimeIndexError
-from backtest_crypto.utilities.iterators import TimeIntervalIterator
 from backtest_crypto.verify.identify_potential_coins import CryptoOversoldCreator, PotentialCoinClient
 from backtest_crypto.verify.individual_indicator_calculator import calculate_indicator
-from backtest_crypto.verify.simulate_timesteps import calculate_simulation
+from backtest_crypto.verify.simulate_timesteps import calculate_simulation_client
 
 logger = logging.getLogger(__name__)
 
@@ -156,13 +155,13 @@ class GatherSimulation(GatherAbstract):
                           potential_coin_client
                           ):
         strategy = simulation_input_dict.pop("strategy")()
-        simulate_result_dict = calculate_simulation(strategy,
-                                                self.data_accessor,
-                                                ohlcv_field=self.ohlcv_field,
-                                                simulation_input_dict=simulation_input_dict,
-                                                potential_coin_client=potential_coin_client,
-                                                simulate_criteria=self.target_iterators,
-                                                )
+        simulate_result_dict = calculate_simulation_client(strategy,
+                                                           self.data_accessor,
+                                                           ohlcv_field=self.ohlcv_field,
+                                                           simulation_input_dict=simulation_input_dict,
+                                                           potential_coin_client=potential_coin_client,
+                                                           simulate_criteria=self.target_iterators,
+                                                           )
 
         self.set_simulator_in_dataset(simulate_result_dict,
                                       simulation_input_dict)

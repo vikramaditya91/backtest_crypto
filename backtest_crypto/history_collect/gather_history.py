@@ -11,6 +11,7 @@ from crypto_history.utilities.general_utilities import register_factory
 from sqlalchemy import create_engine
 
 from backtest_crypto.utilities.general import Singleton, InsufficientHistory
+from backtest_crypto.history_collect.clean_history import remove_duplicates
 
 logger = logging.getLogger(__package__)
 
@@ -153,7 +154,8 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         x_array_dict = {}
         for candle, df in df_dict.items():
             logger.info("Finished accessing the sql to generate the df")
-            x_array_dict[candle] = self.df_to_xarray(candle, df)
+            non_duplicate_df = remove_duplicates(df)
+            x_array_dict[candle] = self.df_to_xarray(candle, non_duplicate_df)
         return x_array_dict
 
     def select_history(self,
@@ -172,7 +174,10 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         starter = start.timestamp() * 1000
         ender = end.timestamp() * 1000
         filtered_timestamps = [item for item in timestamp_list if starter < item < ender]
-        selected = dataarray.sel(timestamp=filtered_timestamps)
+        try:
+            selected = dataarray.sel(timestamp=filtered_timestamps)
+        except Exception as e:
+            a = 1
         return selected
 
     def get_merged_histories(self,
@@ -222,7 +227,7 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         da = instant_history.dropna("base_assets")
         da_dict = da.loc[{"ohlcv_fields": self.ohlcv_field}].to_dict()
         return dict(zip(da_dict["coords"]["base_assets"]["data"],
-                        da_dict["data"][0]
+                        map(float, da_dict["data"][0])
                         ))
 
 
@@ -256,8 +261,8 @@ def get_simple_history(creator: AbstractRawHistoryObtainCreator,
                                       **kwargs)
 
 
-def get_instantaneous_history(creator: AbstractRawHistoryObtainCreator,
-                              current_time,
-                              candle):
+def get_instantaneous_history_client(creator: AbstractRawHistoryObtainCreator,
+                                     current_time,
+                                     candle):
     return creator.get_instantaneous_history(current_time,
                                              candle)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import pandas as pd
 import datetime
+import math
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from datetime import timedelta
@@ -134,7 +135,10 @@ class PotentialCoinClient:
         instance_potential_strategy = self.get_potential_strategy_tuple(potential_coin_strategy)
         history_start, history_end = consider_history
         try:
-            self.multi_index_df["all"][history_start, history_end]
+            all_coin_values = self.multi_index_df['all'][history_start, history_end]
+            if isinstance(all_coin_values, float):
+                if math.isnan(all_coin_values):
+                    raise MissingPotentialCoinTimeIndexError
         except KeyError as e:
             raise MissingPotentialCoinTimeIndexError
         if not self.does_potential_coin_exist_in_object(history_start,

@@ -6,7 +6,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-from backtest_crypto.history_collect.gather_history import get_instantaneous_history
+from backtest_crypto.history_collect.gather_history import get_instantaneous_history_client
 from backtest_crypto.utilities.general import InsufficientHistory, \
     InsufficientBalance, Order, HoldingCoin, OrderType, OrderSide, OrderFill, OrderScheme
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
@@ -146,10 +146,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                         simulation_input_dict,
                                         order_type):
         try:
-            instant_price_dict = get_instantaneous_history(self.history_access,
-                                                           current_time,
-                                                           candle=self.candle
-                                                           )
+            instant_price_dict = get_instantaneous_history_client(self.history_access,
+                                                                  current_time,
+                                                                  candle=self.candle
+                                                                  )
         except InsufficientHistory:
             return
 
@@ -233,7 +233,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
                              ref_qty_available,
                              current_time
                              ):
-        qty_of_altcoin_to_buy = ref_qty_available / buy_price
+        try:
+            qty_of_altcoin_to_buy = ref_qty_available / buy_price
+        except Exception as e:
+            a = 1
 
         return Order(order_side=OrderSide.Buy,
                      order_type=OrderType.Limit,
@@ -253,10 +256,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
             return holdings
 
         try:
-            instant_price_dict = get_instantaneous_history(self.history_access,
-                                                           current_time,
-                                                           candle=self.candle
-                                                           )
+            instant_price_dict = get_instantaneous_history_client(self.history_access,
+                                                                  current_time,
+                                                                  candle=self.candle
+                                                                  )
         except InsufficientHistory:
             return holdings
         for order in self.live_orders:
@@ -409,10 +412,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                   order_scheme):
         if self.holding_operations.if_altcoins_held(holdings):
             try:
-                instance_price_dict = get_instantaneous_history(self.history_access,
-                                                                current_time,
-                                                                candle=self.candle
-                                                                )
+                instance_price_dict = get_instantaneous_history_client(self.history_access,
+                                                                       current_time,
+                                                                       candle=self.candle
+                                                                       )
             except InsufficientHistory:
                 logger.debug(f"History not present in {current_time}")
             else:
@@ -553,7 +556,7 @@ class HoldingOperations:
         try:
             if (simulation_time.day % 5) == 0 and (simulation_time.hour == 1):
                 logger.debug(f"Holdings are worth"
-                             f" {self.get_total_holding_worth(holdings, simulation_time)} "
+                             f" {self.get_total_holding_worth(holdings, simulation_time): .4f} "
                              f"at {simulation_time} ------- {holdings} --- {simulation_input_dict}")
         except InsufficientHistory as e:
             pass
@@ -561,10 +564,10 @@ class HoldingOperations:
     def get_instant_price_dict(self,
                                current_time):
         try:
-            instance_price_dict = get_instantaneous_history(self.history_access,
-                                                            current_time,
-                                                            candle=self.candle
-                                                            )
+            instance_price_dict = get_instantaneous_history_client(self.history_access,
+                                                                   current_time,
+                                                                   candle=self.candle
+                                                                   )
             instance_price_dict[self.reference_coin] = 1
         except InsufficientHistory:
             return {}
@@ -765,8 +768,8 @@ class MarketBuyTrailingSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
         return holdings
 
 
-def calculate_simulation(creator: AbstractTimeStepSimulateCreator,
-                         *args,
-                         **kwargs):
+def calculate_simulation_client(creator: AbstractTimeStepSimulateCreator,
+                                *args,
+                                **kwargs):
     return creator.simulate_timesteps(*args,
                                       **kwargs)
