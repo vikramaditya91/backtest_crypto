@@ -12,7 +12,7 @@ class AbstractIndicatorCreator(ABC):
         raise NotImplementedError
 
     def validate_instance(self,
-                          history_access,
+                          full_history_da_dict,
                           potential_coins,
                           predicted_at,
                           simulation_timedelta,
@@ -22,7 +22,7 @@ class AbstractIndicatorCreator(ABC):
                           ):
         criteria = {}
         try:
-            concrete = self.factory_method(history_access,
+            concrete = self.factory_method(full_history_da_dict,
                                            potential_coins,
                                            predicted_at,
                                            simulation_timedelta,
@@ -47,7 +47,7 @@ class AbstractIndicatorConcrete(ABC):
     _shared_state = {}
 
     def __init__(self,
-                 history_access,
+                 full_history_da_dict,
                  potential_coins_dict,
                  predicted_at,
                  simulation_timedelta,
@@ -63,7 +63,7 @@ class AbstractIndicatorConcrete(ABC):
         self.simulation_timedelta = simulation_timedelta
 
         if not (predicted_at, simulation_timedelta) in self.overall_history_dict.keys():
-            future = get_simple_history(history_access,
+            future = get_simple_history(full_history_da_dict,
                                         start_time=predicted_at,
                                         end_time=predicted_at + simulation_timedelta,
                                         # TODO This should be parametrized
@@ -99,7 +99,7 @@ class MarketBuyLimitSellIndicatorConcrete(AbstractIndicatorConcrete):
         percentage_increase = simulation_input_dict["percentage_increase"]
         relevant_coins = self.history_future.sel(base_assets=self.potential_coins_list,
                                                  ohlcv_fields=[self.ohlcv_field])
-        max_values = relevant_coins.max(axis=2)
+        max_values = relevant_coins.max(dim="timestamp")
         current_values = relevant_coins.loc[{"timestamp": relevant_coins.timestamp[0]}]
         truth_values = current_values * (1 + percentage_increase) < max_values
         return sum(truth_values.values.flatten()) / truth_values.base_assets.__len__()

@@ -10,7 +10,7 @@ from backtest_crypto.history_collect.gather_history import store_largest_xarray
 from backtest_crypto.utilities.iterators import TimeIntervalIterator, \
     ManualSourceIterators, ManualSuccessIterators
 from backtest_crypto.verify import gather_overall
-from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator,\
+from backtest_crypto.verify.simulate_timesteps import MarketBuyLimitSellSimulationCreator, \
     LimitBuyLimitSellSimulationCreator, MarketBuyTrailingSellSimulationCreator
 
 
@@ -21,7 +21,7 @@ def main():
     reference_coin = "BTC"
     ohlcv_field = "open"
     candle = "1h"
-    interval = "100d"
+    interval = "300d"
     data_source_general = "sqlite"
     data_source_specific = "binance"
 
@@ -38,15 +38,15 @@ def main():
     file_path = str(pathlib.Path(__file__).parents[4] /
                     "s3_sync" /
                     "25_Jan_2017_TO_23_May_2021_BTC_1h_1d.db")
-    store_largest_xarray(sqlite_access_creator,
-                         overall_start=overall_start,
-                         overall_end=overall_end,
-                         candle=candle,
-                         reference_coin=reference_coin,
-                         ohlcv_field=ohlcv_field,
-                         file_path=file_path,
-                         mapped_class=OversoldCoins,
-                         table_name_list=table_name_list)
+    full_dataarray_dict = store_largest_xarray(sqlite_access_creator,
+                                               overall_start=overall_start,
+                                               overall_end=overall_end,
+                                               candle=candle,
+                                               reference_coin=reference_coin,
+                                               ohlcv_field=ohlcv_field,
+                                               file_path=file_path,
+                                               mapped_class=OversoldCoins,
+                                               table_name_list=table_name_list)
 
     source_iterators = ManualSourceIterators()
     success_iterators = ManualSuccessIterators()
@@ -72,18 +72,19 @@ def main():
                          MarketBuyTrailingSellSimulationCreator
                      ]
                  }
-    gather_items = gather_overall.GatherSimulation(
-        sqlite_access_creator,
-        (data_source_general, data_source_specific),
-        reference_coin,
-        ohlcv_field,
-        iterators
-    )
 
     pickled_potential_path = str(pathlib.Path(__file__).parents[4] /
-                    "s3_sync" /
-                    "staging" /
-                    "1d_2018-07-01_2021-05-20_potential_coins_overall.pickle")
+                                 "s3_sync" /
+                                 "staging" /
+                                 "1d_2018-07-01_2021-05-20_potential_coins_overall.pickle")
+
+    gather_items = gather_overall.GatherSimulation(
+        full_dataarray_dict,
+        reference_coin,
+        ohlcv_field,
+        iterators,
+        potential_coin_path=pickled_potential_path,
+    )
 
     # pickled_potential_path = str(pathlib.Path(pathlib.Path(__file__).resolve().parents[3] /
     #                                           "common_db" /
@@ -93,7 +94,7 @@ def main():
 
     collective_ds = gather_items.simulation_calculator(narrowed_start,
                                                        narrowed_end,
-                                                       loaded_potential_coins=pickled_potential_path)
+                                                       )
     with open("/Users/vikram/Documents/Personal/s3_sync/result_temp_1",
               "wb") as fp:
         pickle.dump(collective_ds, fp)

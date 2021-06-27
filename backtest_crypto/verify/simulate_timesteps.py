@@ -6,7 +6,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-from backtest_crypto.history_collect.gather_history import get_instantaneous_history_client
+from backtest_crypto.history_collect.gather_history import get_instantaneous_history_from_datarray
 from backtest_crypto.utilities.general import InsufficientHistory, \
     InsufficientBalance, Order, HoldingCoin, OrderType, OrderSide, OrderFill, OrderScheme
 from backtest_crypto.utilities.iterators import TimeIntervalIterator
@@ -21,16 +21,17 @@ class AbstractTimeStepSimulateCreator(ABC):
         raise NotImplementedError
 
     def simulate_timesteps(self,
-                           history_access,
                            ohlcv_field,
                            simulation_input_dict,
                            potential_coin_client,
-                           simulate_criteria
+                           simulate_criteria,
+                           full_history_da_dict
                            ):
         criteria = {}
-        concrete = self.factory_method(history_access,
-                                       ohlcv_field,
-                                       potential_coin_client)
+        concrete = self.factory_method(
+            full_history_da_dict,
+            ohlcv_field,
+            potential_coin_client)
         for simulate_criterion in simulate_criteria:
             method = getattr(concrete, simulate_criterion)
             criteria[simulate_criterion] = method(simulation_input_dict)
@@ -56,7 +57,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
     _shared_state = {}
 
     def __init__(self,
-                 history_access,
+                 full_dataarray_da_dict,
                  ohlcv_field,
                  potential_coin_client,
                  ):
@@ -68,7 +69,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
             self.dust = {}
             self.standard_prices = {}
         self.ohlcv_field = ohlcv_field
-        self.history_access = history_access
+        self.full_dataarray_da_dict = full_dataarray_da_dict
         self.potential_coin_client = potential_coin_client
         self.reference_coin = "BTC"
         self.candle = "1h"
@@ -79,11 +80,11 @@ class AbstractTimestepSimulatorConcrete(ABC):
         self.order_operations = OrderOperations()
         self.holding_operations = HoldingOperations(self.reference_coin,
                                                     self.tolerance,
-                                                    self.history_access,
+                                                    self.full_dataarray_da_dict,
                                                     self.candle,
                                                     self.dust,
                                                     self.standard_prices)
-        self.potential_identification = PotentialIdentification(self.history_access,
+        self.potential_identification = PotentialIdentification(self.full_dataarray_da_dict,
                                                                 self.potential_coin_client,
                                                                 self.candle,
                                                                 self.ohlcv_field,
@@ -146,10 +147,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                         simulation_input_dict,
                                         order_type):
         try:
-            instant_price_dict = get_instantaneous_history_client(self.history_access,
-                                                                  current_time,
-                                                                  candle=self.candle
-                                                                  )
+            instant_price_dict = get_instantaneous_history_from_datarray(self.full_dataarray_da_dict,
+                                                                         current_time,
+                                                                         candle=self.candle
+                                                                         )
         except InsufficientHistory:
             return
 
@@ -233,10 +234,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
                              ref_qty_available,
                              current_time
                              ):
-        try:
-            qty_of_altcoin_to_buy = ref_qty_available / buy_price
-        except Exception as e:
-            a = 1
+        qty_of_altcoin_to_buy = ref_qty_available / buy_price
 
         return Order(order_side=OrderSide.Buy,
                      order_type=OrderType.Limit,
@@ -256,10 +254,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
             return holdings
 
         try:
-            instant_price_dict = get_instantaneous_history_client(self.history_access,
-                                                                  current_time,
-                                                                  candle=self.candle
-                                                                  )
+            instant_price_dict = get_instantaneous_history_from_datarray(self.full_dataarray_da_dict,
+                                                                         current_time,
+                                                                         candle=self.candle
+                                                                         )
         except InsufficientHistory:
             return holdings
         for order in self.live_orders:
@@ -412,10 +410,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                   order_scheme):
         if self.holding_operations.if_altcoins_held(holdings):
             try:
-                instance_price_dict = get_instantaneous_history_client(self.history_access,
-                                                                       current_time,
-                                                                       candle=self.candle
-                                                                       )
+                instance_price_dict = get_instantaneous_history_from_datarray(self.full_dataarray_da_dict,
+                                                                              current_time,
+                                                                              candle=self.candle
+                                                                              )
             except InsufficientHistory:
                 logger.debug(f"History not present in {current_time}")
             else:
@@ -440,10 +438,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
 
 
 class HoldingOperations:
-    def __init__(self, reference_coin, tolerance, history_access, candle, dust, standard_prices):
+    def __init__(self, reference_coin, tolerance, dataarray_dict, candle, dust, standard_prices):
         self.reference_coin = reference_coin
         self.tolerance = tolerance
-        self.history_access = history_access
+        self.dataarray_dict = dataarray_dict
         self.candle = candle
         self.dust = dust
         self.order_operations = OrderOperations()
@@ -564,10 +562,10 @@ class HoldingOperations:
     def get_instant_price_dict(self,
                                current_time):
         try:
-            instance_price_dict = get_instantaneous_history_client(self.history_access,
-                                                                   current_time,
-                                                                   candle=self.candle
-                                                                   )
+            instance_price_dict = get_instantaneous_history_from_datarray(self.dataarray_dict,
+                                                                          current_time,
+                                                                          candle=self.candle
+                                                                          )
             instance_price_dict[self.reference_coin] = 1
         except InsufficientHistory:
             return {}
