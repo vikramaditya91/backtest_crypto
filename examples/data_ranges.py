@@ -17,7 +17,7 @@ def main():
     start_dates = []
     end_dates = []
 
-    for current_start, current_end in time_intervals_iterator.get_time_intervals():
+    for current_start, current_end in time_intervals_iterator.get_time_intervals_list():
         start_dates.append(current_start)
         end_dates.append(current_end)
 
