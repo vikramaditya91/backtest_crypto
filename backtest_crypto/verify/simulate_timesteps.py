@@ -438,10 +438,10 @@ class AbstractTimestepSimulatorConcrete(ABC):
 
 
 class HoldingOperations:
-    def __init__(self, reference_coin, tolerance, dataarray_dict, candle, dust, standard_prices):
+    def __init__(self, reference_coin, tolerance, full_history_da_dict, candle, dust, standard_prices):
         self.reference_coin = reference_coin
         self.tolerance = tolerance
-        self.dataarray_dict = dataarray_dict
+        self.full_history_da_dict = full_history_da_dict
         self.candle = candle
         self.dust = dust
         self.order_operations = OrderOperations()
@@ -562,7 +562,7 @@ class HoldingOperations:
     def get_instant_price_dict(self,
                                current_time):
         try:
-            instance_price_dict = get_instantaneous_history_from_datarray(self.dataarray_dict,
+            instance_price_dict = get_instantaneous_history_from_datarray(self.full_history_da_dict,
                                                                           current_time,
                                                                           candle=self.candle
                                                                           )

@@ -180,12 +180,12 @@ class AbstractIdentifyCreator(ABC):
         raise NotImplementedError
 
     def get_dict_of_all_coins(self,
-                              dataarray_dict,
+                              full_history_da_dict,
                               history_start,
                               history_end,
                               potential_coin_strategy,
                               ):
-        concrete = self.factory_method(dataarray_dict)
+        concrete = self.factory_method(full_history_da_dict)
         return concrete.get_potential_dict_of_all_coins(history_start,
                                                         history_end,
                                                         potential_coin_strategy)
@@ -198,9 +198,9 @@ class CryptoOversoldCreator(AbstractIdentifyCreator):
 
 class AbstractConcreteIdentify(ABC):
     def __init__(self,
-                 dataarray_dict,
+                 full_history_da_dict,
                  ):
-        self.dataarray_dict = dataarray_dict
+        self.full_history_da_dict = full_history_da_dict
         self.data_source_specific = "binance"
 
     @abstractmethod
@@ -234,7 +234,7 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                            history_start,
                                            history_end,
                                            potential_coin_strategy):
-        available_da = get_merged_history(self.dataarray_dict,
+        available_da = get_merged_history(self.full_history_da_dict,
                                           history_start,
                                           history_end,
                                           backward_details=((timedelta(days=0), -timedelta(days=2), "1h"),),
