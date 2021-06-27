@@ -114,19 +114,25 @@ class TimeIntervalIterator:
 
 class ManualSourceIterators:
     def high_cutoff(self):
+        # When selecting potential coins, coins above this value are not selected
         return [5]
         # return np.arange(0.6, 1.2, 0.5)
 
         # return np.arange(0.6, 1.2, 0.05)
 
     def low_cutoff(self):
+        # When selecting potential coins, coins below this value are not selected
         return [1]
 
     def cutoff_mean(self):
-        return [1.5, 5]
+        # When selecting potential coins, potential coins are selected wth this mean.
+        # Can only be used with cutoff_deviation
+        return [2.5]
 
     def cutoff_deviation(self):
-        return [0.2]
+        # When selecting potential coins, potential coins are deviated from the
+        # mean with this value. Can only be used with cutoff_mean
+        return [5]
 
     def max_coins_to_buy(self):
         return [4]
@@ -134,19 +140,33 @@ class ManualSourceIterators:
 
 class ManualSuccessIterators:
     def percentage_increase(self):
-        return [0.05]
+        # When selling the coin, this is the expected profit percentage to make
+        return [0.05, 0.1]
         # return np.arange(0.025, 0.1, 0.05)
 
+    def stop_price_sell(self):
+        # When selling the coin, if a trailing-order is used,
+        # this is the stop-limit for selling.
+        # That is the price below which coin is sold to reduce losses
+        return [0, 0.01, 0.025]
+
+    def limit_sell_adjust_trail(self):
+        # In a trailing order, if the order is too close to the limit,
+        # kill the sell-order `(1-this)*limit_price` is the trigger
+        return [0.01, 0.02, 0.03, 0.04]
+
     def percentage_reduction(self):
-        return [0, 0.01]
+        # When buying an asset, set a buy order with
+        # this much below current price
+        return [0, 0.01, 0.02]
 
     def days_to_run(self):
         # Manually set this from largest to smallest for cache purposes
         return [
-            timedelta(days=1),
-                # timedelta(days=20),
-                # timedelta(days=12),
-                # timedelta(days=24),
+            # timedelta(days=1),
+                timedelta(days=12),
+                timedelta(days=20),
+                timedelta(days=24),
                 # timedelta(days=28),
                 # timedelta(days=32)
         ]

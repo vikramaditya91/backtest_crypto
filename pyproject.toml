@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "backtest_crypto"
+version = "1.1.1b1"
+description = ""
+authors = ["Vikramaditya Gaonkar <vikram@dataroots.io>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+SQLAlchemy = "^1.4.15"
+matplotlib = "^3.4.2"
+
+[tool.poetry.dev-dependencies]
+crypto_oversold = { git = "ssh://git@github.com/vikramaditya91/crypto_oversold.git", branch = "feature/backtest-fix" }
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

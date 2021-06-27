@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import pandas as pd
 import datetime
+import math
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from datetime import timedelta
@@ -10,8 +11,7 @@ from typing import Tuple, Dict, List
 
 
 from crypto_oversold import class_builders
-from crypto_oversold.core_calc import candle_independent, \
-    identify_oversold, normalize_by_all_tickers, preprocess_oversold_calc
+from crypto_oversold.core_calc import candle_independent, normalize_by_all_tickers, preprocess_oversold_calc
 
 from backtest_crypto.history_collect.gather_history import get_merged_history, get_simple_history
 from backtest_crypto.utilities.data_structs import time_interval_iterator_to_pd_multiindex
@@ -135,7 +135,10 @@ class PotentialCoinClient:
         instance_potential_strategy = self.get_potential_strategy_tuple(potential_coin_strategy)
         history_start, history_end = consider_history
         try:
-            self.multi_index_df["all"][history_start, history_end]
+            all_coin_values = self.multi_index_df['all'][history_start, history_end]
+            if isinstance(all_coin_values, float):
+                if math.isnan(all_coin_values):
+                    raise MissingPotentialCoinTimeIndexError
         except KeyError as e:
             raise MissingPotentialCoinTimeIndexError
         if not self.does_potential_coin_exist_in_object(history_start,
@@ -220,7 +223,16 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
         ds = self.all_coins_potential_at_history_end(history_start,
                                                      history_end,
                                                      potential_coin_strategy)
-        return identify_oversold.IdentifyOversold.get_dictionary_of_last_ts_all_coins(ds)
+
+        return self.ds_to_dict(dataset=ds)
+
+    @staticmethod
+    def ds_to_dict(dataset):
+        if 0 in dataset.dims.values():
+            return {}
+        base_assets = dataset.base_assets.values.tolist()
+        values = dataset.open_normalized_by_weight.values.tolist()
+        return {k: v for k, v in zip(base_assets, values[0])}
 
     def all_coins_potential_at_history_end(self,
                                            history_start,
@@ -242,19 +254,10 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
 
         pre_processed_instance = preprocess_oversold_calc. \
             ReformatForOversoldCalc(exchange=self.data_source_specific,
-                                    timestamp_drop_fraction=0.5,
                                     coin_drop_fraction=0.975)
 
-        pre_processed_da = pre_processed_instance.perform_cleaning_operations(
-            available_da,
-            cleaners=["remove_futures",
-                      "type_convert_datarray",
-                      "entire_na_column_removal",
-                      "remove_coins_with_missing_data",
-                      "drop_coins_ending_latest_nan",
-                      "remove_largely_invalid_ts",
-                      "remove_null_rows_absolute"]
-        )
+        pre_processed_da = pre_processed_instance.get_dataarray_for_oversold_calc(available_da)
+
         logger.debug(f"The dataarray in the unmasked history has been pre-processed for {history_start} {history_end}")
 
         candle_independent_instance = candle_independent.CandleIndependence. \
@@ -270,14 +273,20 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                    )
 
         normalize_against_tickers_instance = normalize_by_all_tickers.NormalizeAgainstTickers()
-        dataset_normalized_coins = normalize_against_tickers_instance. \
-            normalize_against_other_coins(
-                normalized_by_weight,
-                to_normalize=(normalized_field,)
-            )
-        return identify_oversold.IdentifyOversold.get_last_timestamp_values(dataset_normalized_coins,
-                                                                            normalized_field)
-
+        if 0 not in normalized_by_weight.dims.values():
+            dataset_normalized_coins = normalize_against_tickers_instance. \
+                normalize_against_other_coins(
+                    normalized_by_weight,
+                    to_normalize=(normalized_field,)
+                )
+        else:
+            logger.warning(f"Empty dataset. Normalizing against tickers will not be carried out for timestamp"
+                           f" {datetime.datetime.fromtimestamp(normalized_by_weight.timestamp[0].values.tolist()/1000)}"
+                           f" to "
+                           f"{datetime.datetime.fromtimestamp(normalized_by_weight.timestamp[-1].values.tolist()/1000)}"
+                           )
+            dataset_normalized_coins = normalized_by_weight
+        return dataset_normalized_coins.sel({"timestamp": dataset_normalized_coins.timestamp[-1]})
 
 
 class PotentialIdentification:
