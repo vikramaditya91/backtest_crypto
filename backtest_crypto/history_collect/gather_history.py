@@ -51,22 +51,22 @@ class ConcreteAbstractCoinHistoryAccess:
     def get_fresh_xarray(self):
         pass
 
-    def store_largest_da_on_borg(self, dataarray_dict):
+    def store_largest_da_on_borg(self, full_history_da_dict):
         # TODO Certainly better ways to do it
-        for key in dataarray_dict.keys():
-            for ohlcv_field in dataarray_dict[key].ohlcv_fields.values:
+        for key in full_history_da_dict.keys():
+            for ohlcv_field in full_history_da_dict[key].ohlcv_fields.values:
                 if ohlcv_field != "weight":
-                    dataarray_dict[key].loc[{"ohlcv_fields": ohlcv_field}] = \
-                        dataarray_dict[key].loc[{"ohlcv_fields": ohlcv_field}].astype(float)
-        self.largest_xarray_dict = dataarray_dict
+                    full_history_da_dict[key].loc[{"ohlcv_fields": ohlcv_field}] = \
+                        full_history_da_dict[key].loc[{"ohlcv_fields": ohlcv_field}].astype(float)
+        self.largest_xarray_dict = full_history_da_dict
 
     def get_full_history_store(self) -> FullHistoryStore:
         if self.largest_xarray_dict is None:
-            dataarray_dict = self.get_fresh_xarray()
-            self.store_largest_da_on_borg(dataarray_dict)
+            full_history_da_dict = self.get_fresh_xarray()
+            self.store_largest_da_on_borg(full_history_da_dict)
         else:
-            dataarray_dict = self.largest_xarray_dict
-        return FullHistoryStore(dataarray_dict)
+            full_history_da_dict = self.largest_xarray_dict
+        return FullHistoryStore(full_history_da_dict)
 
 
 class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):

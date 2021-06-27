@@ -26,7 +26,7 @@ def main():
 
     sqlite_access_creator = class_builders.get("access_xarray").get(data_source_general)()
 
-    full_history_dataarray_dict = store_largest_xarray(sqlite_access_creator,
+    full_history_da_dict = store_largest_xarray(sqlite_access_creator,
                                                        overall_start=overall_start,
                                                        overall_end=overall_end,
                                                        candle=candle,
@@ -60,7 +60,7 @@ def main():
                  }
 
     gather_items = gather_overall.GatherPotential(
-        full_history_dataarray_dict,
+        full_history_da_dict,
         reference_coin,
         ohlcv_field,
         iterators,

@@ -33,7 +33,7 @@ class GatherAbstract(ABC):
         self.full_history_da_dict = full_history_da_dict
         self.potential_coin_path = potential_coin_path
         self._potential_client = None
-        self.pool_count = 8
+        self.pool_count = 4
 
     @property
     def potential_client(self):
@@ -222,7 +222,7 @@ class GatherSimulation(GatherAbstract):
                            coordinate_dict,
                            potential_client,
                            target_iterators,
-                           dataarray_dict
+                           full_history_da_dict
                            ):
         try:
             strategy = coordinate_dict.pop("strategy")()
@@ -231,7 +231,7 @@ class GatherSimulation(GatherAbstract):
                                                simulation_input_dict=coordinate_dict,
                                                potential_coin_client=potential_client,
                                                simulate_criteria=target_iterators,
-                                               dataarray_dict=dataarray_dict
+                                               full_history_da_dict=full_history_da_dict
                                                )
         except InsufficientHistory as e:
             # pass
