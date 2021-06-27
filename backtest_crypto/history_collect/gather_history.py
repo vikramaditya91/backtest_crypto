@@ -29,7 +29,7 @@ class AbstractRawHistoryObtainCreator(ABC):
                                           **kwargs):
         product = self.factory_method(*args, **kwargs)
         product.store_largest_da_on_borg(product.get_fresh_xarray())
-        return product.get_xarray()
+        return product.get_full_history_store()
 
 
 @register_factory(section="access_xarray", identifier="sqlite")
@@ -44,8 +44,8 @@ class ConcreteAbstractCoinHistoryAccess:
     def __init__(self,
                  *args,
                  **kwargs):
-
         super().__init__(*args, **kwargs)
+        self.largest_xarray_dict = None
 
     @abstractmethod
     def get_fresh_xarray(self):
@@ -54,11 +54,13 @@ class ConcreteAbstractCoinHistoryAccess:
     def store_largest_da_on_borg(self, dataarray_dict):
         # TODO Certainly better ways to do it
         for key in dataarray_dict.keys():
-            dataarray_dict[key].loc[{"ohlcv_fields": "open"}] = \
-                dataarray_dict[key].loc[{"ohlcv_fields": "open"}].astype(float)
+            for ohlcv_field in dataarray_dict[key].ohlcv_fields.values:
+                if ohlcv_field != "weight":
+                    dataarray_dict[key].loc[{"ohlcv_fields": ohlcv_field}] = \
+                        dataarray_dict[key].loc[{"ohlcv_fields": ohlcv_field}].astype(float)
         self.largest_xarray_dict = dataarray_dict
 
-    def get_xarray(self):
+    def get_full_history_store(self) -> FullHistoryStore:
         if self.largest_xarray_dict is None:
             dataarray_dict = self.get_fresh_xarray()
             self.store_largest_da_on_borg(dataarray_dict)
