@@ -10,7 +10,6 @@ from datetime import timedelta
 from typing import Tuple, Dict, List
 
 
-from crypto_oversold import class_builders
 from crypto_oversold.core_calc import candle_independent, normalize_by_all_tickers, preprocess_oversold_calc
 
 from backtest_crypto.history_collect.gather_history import get_merged_history, get_simple_history
@@ -52,8 +51,8 @@ class PotentialCoinClient:
     def __init__(self,
                  time_interval_iterator,
                  potential_calc_creator: AbstractIdentifyCreator,
-                 data_source,
-                 pickled_potential_coin_path=None
+                 full_history_da_dict,
+                 pickled_potential_coin_path=None,
                  ):
         self.__dict__ = self._shared_state
         if pickled_potential_coin_path is not None:
@@ -61,7 +60,7 @@ class PotentialCoinClient:
         if not self._shared_state:
             self.multi_index_df = MultiIndexPotential.initialize_series(time_interval_iterator)
         self.potential_calc_creator = potential_calc_creator
-        self.data_source_general, self.data_source_specific = data_source
+        self.full_history_da_dict = full_history_da_dict
 
     def does_potential_coin_exist_in_object(self,
                                             history_start,
@@ -168,8 +167,7 @@ class PotentialCoinClient:
                                           end_time,
                                           potential_coin_strategy):
         return self.potential_calc_creator.get_dict_of_all_coins(
-            self.data_source_general,
-            self.data_source_specific,
+            self.full_history_da_dict,
             start_time,
             end_time,
             potential_coin_strategy,
@@ -182,14 +180,12 @@ class AbstractIdentifyCreator(ABC):
         raise NotImplementedError
 
     def get_dict_of_all_coins(self,
-                              data_source_general,
-                              data_source_specific,
+                              dataarray_dict,
                               history_start,
                               history_end,
                               potential_coin_strategy,
                               ):
-        concrete = self.factory_method(data_source_general,
-                                       data_source_specific)
+        concrete = self.factory_method(dataarray_dict)
         return concrete.get_potential_dict_of_all_coins(history_start,
                                                         history_end,
                                                         potential_coin_strategy)
@@ -202,10 +198,10 @@ class CryptoOversoldCreator(AbstractIdentifyCreator):
 
 class AbstractConcreteIdentify(ABC):
     def __init__(self,
-                 data_source_general,
-                 data_source_specific):
-        self.data_source_specific = data_source_specific
-        self.data_source_general = data_source_general
+                 dataarray_dict,
+                 ):
+        self.dataarray_dict = dataarray_dict
+        self.data_source_specific = "binance"
 
     @abstractmethod
     def all_coins_potential_at_history_end(self, *args, **kwargs):
@@ -238,9 +234,7 @@ class ConcreteCryptoOversoldIdentify(AbstractConcreteIdentify):
                                            history_start,
                                            history_end,
                                            potential_coin_strategy):
-        access_creator = class_builders.get("access_xarray").get(self.data_source_general)()
-
-        available_da = get_merged_history(access_creator,
+        available_da = get_merged_history(self.dataarray_dict,
                                           history_start,
                                           history_end,
                                           backward_details=((timedelta(days=0), -timedelta(days=2), "1h"),),

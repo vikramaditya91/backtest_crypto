@@ -10,7 +10,7 @@ import xarray as xr
 from crypto_history.utilities.general_utilities import register_factory
 from sqlalchemy import create_engine
 
-from backtest_crypto.utilities.general import Singleton, InsufficientHistory
+from backtest_crypto.utilities.general import InsufficientHistory
 from backtest_crypto.history_collect.clean_history import remove_duplicates
 
 logger = logging.getLogger(__package__)
@@ -29,24 +29,7 @@ class AbstractRawHistoryObtainCreator(ABC):
                                           **kwargs):
         product = self.factory_method(*args, **kwargs)
         product.store_largest_da_on_borg(product.get_fresh_xarray())
-
-    def merge_simplified_history(self,
-                                 *args,
-                                 **kwargs):
-        product = self.factory_method()
-        return product.get_merged_histories(*args, **kwargs)
-
-    def get_simple_history(self,
-                           *args,
-                           **kwargs):
-        product = self.factory_method()
-        return product.get_simple_history(*args, **kwargs)
-
-    def get_instantaneous_history(self,
-                                  *args,
-                                  **kwargs):
-        product = self.factory_method()
-        return product.get_instantaneous_history(*args, **kwargs)
+        return product.get_xarray()
 
 
 @register_factory(section="access_xarray", identifier="sqlite")
@@ -57,31 +40,22 @@ class SQLiteCoinHistoryCreator(AbstractRawHistoryObtainCreator):
         return ConcreteSQLiteCoinHistoryAccess(*args, **kwargs)
 
 
-class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
+class ConcreteAbstractCoinHistoryAccess:
     def __init__(self,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
-        self.timestamp_dict = {}
 
-    @abstractmethod
-    def get_merged_histories(self, *args, **kwargs):
-        pass
+        super().__init__(*args, **kwargs)
 
     @abstractmethod
     def get_fresh_xarray(self):
         pass
 
-    @abstractmethod
-    def get_simple_history(self, *args, **kwargs):
-        pass
-
-    @abstractmethod
-    def get_instantaneous_history(self, *args, **kwargs):
-        pass
-
     def store_largest_da_on_borg(self, dataarray_dict):
         # TODO Certainly better ways to do it
+        for key in dataarray_dict.keys():
+            dataarray_dict[key].loc[{"ohlcv_fields": "open"}] = \
+                dataarray_dict[key].loc[{"ohlcv_fields": "open"}].astype(float)
         self.largest_xarray_dict = dataarray_dict
 
     def get_xarray(self):
@@ -90,13 +64,7 @@ class ConcreteAbstractCoinHistoryAccess(metaclass=Singleton):
             self.store_largest_da_on_borg(dataarray_dict)
         else:
             dataarray_dict = self.largest_xarray_dict
-        return dataarray_dict
-
-    def get_timestamps(self,
-                       candle):
-        if candle not in self.timestamp_dict.keys():
-            self.timestamp_dict[candle] = self.largest_xarray_dict[candle].timestamp.values.tolist()
-        return self.timestamp_dict[candle]
+        return FullHistoryStore(dataarray_dict)
 
 
 class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
@@ -158,6 +126,28 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
             x_array_dict[candle] = self.df_to_xarray(candle, non_duplicate_df)
         return x_array_dict
 
+
+class FullHistoryStore:
+    def __init__(self,
+                 dataarray):
+        self.dataarray = dataarray
+        self.timestamp_dict = {}
+
+    def get_instantaneous_history(self,
+                                  current_time,
+                                  candle,
+                                  ohlcv_field="open"):
+        da = self.dataarray[candle]
+        try:
+            instant_history = da.sel(timestamp=current_time.timestamp() * 1000)
+        except KeyError:
+            raise InsufficientHistory(f"History not present in {current_time}")
+        da = instant_history.dropna("base_assets")
+        da_dict = da.loc[{"ohlcv_fields": ohlcv_field}].to_dict()
+        return dict(zip(da_dict["coords"]["base_assets"]["data"],
+                        map(float, da_dict["data"][0])
+                        ))
+
     def select_history(self,
                        start: datetime.datetime,
                        end: datetime.datetime,
@@ -174,11 +164,7 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
         starter = start.timestamp() * 1000
         ender = end.timestamp() * 1000
         filtered_timestamps = [item for item in timestamp_list if starter < item < ender]
-        try:
-            selected = dataarray.sel(timestamp=filtered_timestamps)
-        except Exception as e:
-            a = 1
-        return selected
+        return dataarray.sel(timestamp=filtered_timestamps)
 
     def get_merged_histories(self,
                              start_time,
@@ -196,12 +182,12 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                 sub_end = start_time
             sub_history = self.select_history(sub_start,
                                               sub_end,
-                                              self.largest_xarray_dict[candle],
+                                              self.dataarray[candle],
                                               candle=candle)
             sub_histories.append(sub_history)
         sub_histories.append(self.select_history(sub_end,
                                                  start_time,
-                                                 self.largest_xarray_dict[remaining],
+                                                 self.dataarray[remaining],
                                                  candle=remaining))
         joined_xarray = xr.concat([*sub_histories], dim="timestamp")
         # TODO Raise an error if history is empty
@@ -213,22 +199,14 @@ class ConcreteSQLiteCoinHistoryAccess(ConcreteAbstractCoinHistoryAccess):
                            candle):
         return self.select_history(start_time,
                                    end_time,
-                                   self.largest_xarray_dict[candle],
+                                   self.dataarray[candle],
                                    candle)
 
-    def get_instantaneous_history(self,
-                                  current_time,
-                                  candle):
-        da = self.largest_xarray_dict[candle]
-        try:
-            instant_history = da.sel(timestamp=current_time.timestamp() * 1000)
-        except KeyError:
-            raise InsufficientHistory(f"History not present in {current_time}")
-        da = instant_history.dropna("base_assets")
-        da_dict = da.loc[{"ohlcv_fields": self.ohlcv_field}].to_dict()
-        return dict(zip(da_dict["coords"]["base_assets"]["data"],
-                        map(float, da_dict["data"][0])
-                        ))
+    def get_timestamps(self,
+                       candle):
+        if candle not in self.timestamp_dict.keys():
+            self.timestamp_dict[candle] = self.dataarray[candle].timestamp.values.tolist()
+        return self.timestamp_dict[candle]
 
 
 def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
@@ -246,23 +224,23 @@ def store_largest_xarray(creator: AbstractRawHistoryObtainCreator,
                                                      **kwargs)
 
 
-def get_merged_history(creator: AbstractRawHistoryObtainCreator,
+def get_merged_history(datarray_object: FullHistoryStore,
                        *args,
                        **kwargs):
-    return creator.merge_simplified_history(*args,
-                                            **kwargs)
+    return datarray_object.get_merged_histories(*args,
+                                                **kwargs)
 
 
-def get_simple_history(creator: AbstractRawHistoryObtainCreator,
+def get_simple_history(full_history_da_dict: FullHistoryStore,
                        *args,
                        **kwargs
                        ):
-    return creator.get_simple_history(*args,
-                                      **kwargs)
+    return full_history_da_dict.get_simple_history(*args,
+                                                   **kwargs)
 
 
-def get_instantaneous_history_client(creator: AbstractRawHistoryObtainCreator,
-                                     current_time,
-                                     candle):
-    return creator.get_instantaneous_history(current_time,
-                                             candle)
+def get_instantaneous_history_from_datarray(datarray_object: FullHistoryStore,
+                                            current_time,
+                                            candle):
+    return datarray_object.get_instantaneous_history(current_time,
+                                                     candle)

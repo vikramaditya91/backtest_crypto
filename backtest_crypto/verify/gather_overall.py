@@ -1,6 +1,8 @@
 import itertools
 import logging
 from abc import ABC, abstractmethod
+from typing import List
+from multiprocessing import Pool
 
 import xarray as xr
 
@@ -14,14 +16,12 @@ logger = logging.getLogger(__name__)
 
 class GatherAbstract(ABC):
     def __init__(self,
-                 data_accessor,
-                 data_source,
+                 full_history_da_dict,
                  reference_coin,
                  ohlcv_field,
                  iterators,
+                 potential_coin_path=None
                  ):
-        self.data_accessor = data_accessor
-        self.data_source_general, self.data_source_specific = data_source
         self.reference_coin = reference_coin
         self.ohlcv_field = ohlcv_field
         self.time_interval_iterator = iterators["time"]
@@ -30,29 +30,40 @@ class GatherAbstract(ABC):
         self.target_iterators = iterators["target"]
         self.strategy_iterators = iterators["strategy"]
         self.do_not_sort_list = ["days_to_run"]
+        self.full_history_da_dict = full_history_da_dict
+        self.potential_coin_path = potential_coin_path
+        self._potential_client = None
+        self.pool_count = 8
+
+    @property
+    def potential_client(self):
+        if self._potential_client is None:
+            self._potential_client = PotentialCoinClient(
+                self.time_interval_iterator,
+                CryptoOversoldCreator(),
+                self.full_history_da_dict,
+                self.potential_coin_path,
+            )
+        return self._potential_client
 
     @abstractmethod
     def get_coords_for_dataset(self):
         pass
 
-    def yield_tuple_strategy(self):
-        coordinates = self.get_coords_for_dataset()
+    def sort_coordinates(self,
+                         coordinates):
         for key, values in coordinates:
             if key not in self.do_not_sort_list:
                 values.sort()
 
-        first_item = None
-        for item in itertools.product(*(dict(coordinates).values())):
-            if first_item != item[0]:
-                try:
-                    history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                        item[0]
-                    )
-                    logger.info(f"Updating the first item: {history_start} to {history_end}")
-                except Exception:
-                    logger.info(f"Updating the first item: {item[0]}")
-                first_item = item[0]
-            yield item
+    def get_tuple_strategy_wo_time_intervals(self):
+        coordinates = self.get_coords_for_dataset()
+        self.sort_coordinates(coordinates)
+        strategic_items = []
+        non_ts_coordinates = [item for item in coordinates if item[0] != "time_intervals"]
+        for item in itertools.product(*(dict(non_ts_coordinates).values())):
+            strategic_items.append(item)
+        return strategic_items
 
     def initialize_success_dataarray(self):
         return xr.DataArray(None, coords=self.get_coords_for_dataset())
@@ -63,6 +74,54 @@ class GatherAbstract(ABC):
         for data_variable in dataset:
             dataset[data_variable] = dataset[data_variable].copy()
         return dataset
+
+    def assemble_dynamic_arguments_for_pool(self,
+                                            time_interval,
+                                            narrowed_end_time,
+                                            narrowed_start_time
+                                            ):
+        tuple_strategy_list = self.get_tuple_strategy_wo_time_intervals()
+        collect_args = []
+        for tuple_strategy_wo_ts in tuple_strategy_list:
+            coordinate_dict = self.get_coordinate_dict(time_interval,
+                                                       tuple_strategy_wo_ts)
+            string_start_end = coordinate_dict['time_intervals']
+            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                string_start_end
+            )
+            if narrowed_end_time >= history_end:
+                if history_end >= narrowed_start_time:
+                    collect_args.append(coordinate_dict)
+        return collect_args
+
+    def get_coordinate_dict(self,
+                            time_interval,
+                            tuple_strategy
+                            ):
+        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
+        coordinate_dict = dict(zip(coordinate_keys,
+                                   (time_interval, *tuple_strategy)))
+        coordinate_dict['time_intervals'] = time_interval
+        return coordinate_dict
+
+    def yield_time_intervals(self):
+        coordinates = self.get_coords_for_dataset()
+        self.sort_coordinates(coordinates)
+        time_intervals: List = dict(coordinates)['time_intervals']
+
+        first_item = None
+
+        for time_interval in time_intervals:
+            if first_item != time_interval:
+                try:
+                    history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                        time_interval
+                    )
+                    logger.info(f"Updating the first item: {history_start} to {history_end}")
+                except Exception:
+                    logger.info(f"Updating the first item: {time_interval}")
+                first_item = time_interval
+            yield time_interval
 
 
 class GatherPotential(GatherAbstract):
@@ -78,32 +137,33 @@ class GatherPotential(GatherAbstract):
                                       narrowed_start_time,
                                       narrowed_end_time,
                                       pickled_file_path):
-        data_source = (self.data_source_general, self.data_source_specific)
-        potential_coin_client = PotentialCoinClient(self.time_interval_iterator,
-                                                    CryptoOversoldCreator(),
-                                                    data_source,
-                                                    )
-        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
-        for tuple_strategy in self.yield_tuple_strategy():
-            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
-            string_start_end = coordinate_dict["time_intervals"]
+        for time_interval in self.yield_time_intervals():
+            collected_args = self.assemble_dynamic_arguments_for_pool(time_interval,
+                                                    narrowed_end_time,
+                                                    narrowed_start_time)
 
-            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                string_start_end
-            )
-            if narrowed_end_time >= history_end:
-                if history_end >= narrowed_start_time:
-                    try:
-                        potential_coin_client.get_potential_coin_at(
-                            consider_history=(history_start, history_end),
-                            potential_coin_strategy={**coordinate_dict,
-                                                     "ohlcv_field": self.ohlcv_field,
-                                                     "reference_coin": self.reference_coin}
-                        )
-                    except InsufficientHistory:
-                        logger.warning(f"Insufficient history for {history_start} to {history_end}")
-        pandas_series = potential_coin_client.get_complete_potential_coins_all_combinations()
-        pandas_series.to_pickle(pickled_file_path)
+            for coordinate_dict in collected_args:
+                string_start_end = coordinate_dict["time_intervals"]
+
+                history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                    string_start_end
+                )
+                if narrowed_end_time >= history_end:
+                    if history_end >= narrowed_start_time:
+                        try:
+                            potential_coin_strategy = {**coordinate_dict,
+                                                       "ohlcv_field": self.ohlcv_field,
+                                                       "reference_coin": self.reference_coin}
+                            instance_potential_strategy = self.potential_client.\
+                                get_potential_strategy_tuple(potential_coin_strategy)
+                            self.potential_client.update_potential_coin_location(history_start,
+                                                                                 history_end,
+                                                                                 instance_potential_strategy,
+                                                                                 potential_coin_strategy)
+                        except InsufficientHistory:
+                            logger.warning(f"Insufficient history for {history_start} to {history_end}")
+            pandas_series = self.potential_client.get_complete_potential_coins_all_combinations()
+            pandas_series.to_pickle(pickled_file_path)
 
 
 class GatherSimulation(GatherAbstract):
@@ -120,51 +180,62 @@ class GatherSimulation(GatherAbstract):
             coordinates.append((source.__name__, source()))
         return coordinates
 
+    def collect_arguments(self,
+                          time_interval,
+                          narrowed_start_time,
+                          narrowed_end_time,
+                          ):
+        collected_args = self.assemble_dynamic_arguments_for_pool(time_interval,
+                                                                  narrowed_end_time,
+                                                                  narrowed_start_time)
+        collected_args = [(self.ohlcv_field,
+                           item,
+                           self.potential_client,
+                           self.target_iterators,
+                           self.full_history_da_dict) for item in collected_args]
+        return collected_args
+
     def simulation_calculator(self,
                               narrowed_start_time,
                               narrowed_end_time,
-                              loaded_potential_coins):
-        data_source = (self.data_source_general, self.data_source_specific)
-        potential_coin_client = PotentialCoinClient(
-            self.time_interval_iterator,
-            CryptoOversoldCreator(),
-            data_source,
-            loaded_potential_coins,
-        )
-        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
+                              ):
+        for time_interval in self.yield_time_intervals():
+            collected_args = self.collect_arguments(time_interval,
+                                                    narrowed_start_time,
+                                                    narrowed_end_time)
+            with Pool(self.pool_count) as pool:
+                simulation_results = pool.starmap(self.execute_simulation, collected_args)
 
-        for tuple_strategy in self.yield_tuple_strategy():
-            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
-            string_start_end = coordinate_dict["time_intervals"]
-            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                string_start_end
-            )
-            if narrowed_end_time >= history_end:
-                if history_end >= narrowed_start_time:
-                    try:
-                        self.simulate_timestep(coordinate_dict,
-                                               potential_coin_client)
-                    except InsufficientHistory as e:
-                        # pass
-                        logger.warning(f"Insufficient history for {history_start} "
-                                       f"to {history_end}. Reason {e}")
+            self.store_simulation_results(simulation_results,
+                                          collected_args)
         return self.gathered_dataset
 
-    def simulate_timestep(self,
-                          simulation_input_dict,
-                          potential_coin_client
-                          ):
-        strategy = simulation_input_dict.pop("strategy")()
-        simulate_result_dict = calculate_simulation_client(strategy,
-                                                           self.data_accessor,
-                                                           ohlcv_field=self.ohlcv_field,
-                                                           simulation_input_dict=simulation_input_dict,
-                                                           potential_coin_client=potential_coin_client,
-                                                           simulate_criteria=self.target_iterators,
-                                                           )
+    def store_simulation_results(self,
+                                 simulation_results,
+                                 collected_args):
+        for sim_result, collected_arg in zip(simulation_results, collected_args):
+            self.set_simulator_in_dataset(sim_result,
+                                          collected_arg[1])
 
-        self.set_simulator_in_dataset(simulate_result_dict,
-                                      simulation_input_dict)
+    @staticmethod
+    def execute_simulation(ohlcv_field,
+                           coordinate_dict,
+                           potential_client,
+                           target_iterators,
+                           dataarray_dict
+                           ):
+        try:
+            strategy = coordinate_dict.pop("strategy")()
+            return calculate_simulation_client(strategy,
+                                               ohlcv_field=ohlcv_field,
+                                               simulation_input_dict=coordinate_dict,
+                                               potential_coin_client=potential_client,
+                                               simulate_criteria=target_iterators,
+                                               dataarray_dict=dataarray_dict
+                                               )
+        except InsufficientHistory as e:
+            # pass
+            logger.warning(f"Insufficient history. Reason {e}")
 
     def set_simulator_in_dataset(self,
                                  simulate_result_dict,
@@ -199,7 +270,7 @@ class GatherIndicator(GatherAbstract):
                          simulation_timedelta):
         strategy = simulation_input_dict.pop("strategy")()
         success_dict = calculate_indicator(strategy,
-                                           self.data_accessor,
+                                           self.full_history_da_dict,
                                            potential_coins,
                                            potential_end,
                                            simulation_timedelta=simulation_timedelta,
@@ -213,41 +284,43 @@ class GatherIndicator(GatherAbstract):
 
     def overall_individual_indicator_calculator(self,
                                                 narrowed_start_time,
-                                                narrowed_end_time,
-                                                loaded_potential_coins=None):
-        data_source = (self.data_source_general, self.data_source_specific)
-        potential_coin_client = PotentialCoinClient(
-            self.time_interval_iterator,
-            CryptoOversoldCreator(),
-            data_source,
-            loaded_potential_coins,
-        )
-        coordinate_keys = dict(self.get_coords_for_dataset()).keys()
+                                                narrowed_end_time):
+        for time_interval in self.yield_time_intervals():
+            collected_args = self.assemble_dynamic_arguments_for_pool(time_interval,
+                                                                      narrowed_end_time,
+                                                                      narrowed_start_time)
 
-        for tuple_strategy in self.yield_tuple_strategy():
-            coordinate_dict = dict(zip(coordinate_keys, tuple_strategy))
-            string_start_end = coordinate_dict["time_intervals"]
-            history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
-                string_start_end
-            )
-            if narrowed_end_time >= history_end:
-                if history_end >= narrowed_start_time:
-                    try:
-                        potential_coins = potential_coin_client.get_potential_coin_at(
-                            consider_history=(history_start, history_end),
-                            potential_coin_strategy={**coordinate_dict,
-                                                     "ohlcv_field": self.ohlcv_field,
-                                                     "reference_coin": self.reference_coin}
-                        )
-                    except MissingPotentialCoinTimeIndexError:
-                        logger.debug(f"Potential coins are unavailable for {coordinate_dict}")
-                        continue
-
-                    simulation_timedelta = coordinate_dict["days_to_run"]
-                    self.indicator_insert(coordinate_dict,
-                                          potential_coins,
-                                          history_end,
-                                          simulation_timedelta)
+            for coordinate_dict in collected_args:
+                string_start_end = coordinate_dict["time_intervals"]
+                history_start, history_end = self.time_interval_iterator.get_datetime_objects_from_str(
+                    string_start_end
+                )
+                if narrowed_end_time >= history_end:
+                    if history_end >= narrowed_start_time:
+                        try:
+                            potential_coin_strategy = {**coordinate_dict,
+                                                       "ohlcv_field": self.ohlcv_field,
+                                                       "reference_coin": self.reference_coin}
+                            instance_potential_strategy = self.potential_client. \
+                                get_potential_strategy_tuple(potential_coin_strategy)
+                            self.potential_client.update_potential_coin_location(history_start,
+                                                                                 history_end,
+                                                                                 instance_potential_strategy,
+                                                                                 potential_coin_strategy)
+                            potential_coins = self.potential_client.get_potential_coin_at(
+                                consider_history=(history_start, history_end),
+                                potential_coin_strategy={**coordinate_dict,
+                                                         "ohlcv_field": self.ohlcv_field,
+                                                         "reference_coin": self.reference_coin}
+                            )
+                        except InsufficientHistory:
+                            logger.warning(f"Insufficient history for {history_start} to {history_end}")
+                        else:
+                            simulation_timedelta = coordinate_dict["days_to_run"]
+                            self.indicator_insert(coordinate_dict,
+                                                  potential_coins,
+                                                  history_end,
+                                                  simulation_timedelta)
 
                     # logger.warning(f"Insufficient history for {history_start} "
                     #                f"to {history_end}")

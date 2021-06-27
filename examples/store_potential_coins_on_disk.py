@@ -26,15 +26,15 @@ def main():
 
     sqlite_access_creator = class_builders.get("access_xarray").get(data_source_general)()
 
-    store_largest_xarray(sqlite_access_creator,
-                         overall_start=overall_start,
-                         overall_end=overall_end,
-                         candle=candle,
-                         reference_coin=reference_coin,
-                         ohlcv_field=ohlcv_field,
-                         file_path="/Users/vikram/Documents/Personal/s3_sync/25_Jan_2017_TO_23_May_2021_BTC_1h_1d.db",
-                         mapped_class=OversoldCoins,
-                         table_name_list=table_name_list)
+    full_history_dataarray_dict = store_largest_xarray(sqlite_access_creator,
+                                                       overall_start=overall_start,
+                                                       overall_end=overall_end,
+                                                       candle=candle,
+                                                       reference_coin=reference_coin,
+                                                       ohlcv_field=ohlcv_field,
+                                                       file_path="/Users/vikram/Documents/Personal/s3_sync/25_Jan_2017_TO_23_May_2021_BTC_1h_1d.db",
+                                                       mapped_class=OversoldCoins,
+                                                       table_name_list=table_name_list)
 
     source_iterators = ManualSourceIterators()
 
@@ -53,18 +53,18 @@ def main():
                  "success": [
                  ],
                  "target": [
-                ],
+                 ],
                  "strategy": [
 
                  ]
-                }
+                 }
 
     gather_items = gather_overall.GatherPotential(
-        sqlite_access_creator,
-        (data_source_general, data_source_specific),
+        full_history_dataarray_dict,
         reference_coin,
         ohlcv_field,
-        iterators
+        iterators,
+        potential_coin_path=None,
     )
 
     narrowed_start = datetime(day=1, month=7, year=2018)
