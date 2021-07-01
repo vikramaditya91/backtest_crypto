@@ -203,6 +203,9 @@ class GatherSimulation(GatherAbstract):
             collected_args = self.collect_arguments(time_interval,
                                                     narrowed_start_time,
                                                     narrowed_end_time)
+            # simulation_results = []
+            # for simulation in collected_args:
+            #     simulation_results.append(self.execute_simulation(*simulation))
             with Pool(self.pool_count) as pool:
                 simulation_results = pool.starmap(self.execute_simulation, collected_args)
 

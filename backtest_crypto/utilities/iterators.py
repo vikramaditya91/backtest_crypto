@@ -81,15 +81,15 @@ class TimeIntervalIterator:
         # Made set because there could be multiple coordinates with the same values.
         # Should probably be fixed in a better way
         return list(set(map(
-            lambda x: f"{int(x[0].timestamp()*1000)}{delimiter}{int(x[1].timestamp()*1000)}", time_intervals
-            )
+            lambda x: f"{int(x[0].timestamp() * 1000)}{delimiter}{int(x[1].timestamp() * 1000)}", time_intervals
+        )
         ))
 
     @staticmethod
     def get_datetime_objects_from_str(timestamps_separated,
                                       delimiter="_"):
         start, end = timestamps_separated.split(delimiter)
-        return datetime.fromtimestamp(float(start)/1000), datetime.fromtimestamp(float(end)/1000)
+        return datetime.fromtimestamp(float(start) / 1000), datetime.fromtimestamp(float(end) / 1000)
 
     @classmethod
     def get_time_interval_list(cls,
@@ -108,7 +108,7 @@ class TimeIntervalIterator:
     def time_iterator(start_time: datetime,
                       end_time: datetime,
                       interval: timedelta):
-        for n in range(int((end_time - start_time)/interval)):
+        for n in range(int((end_time - start_time) / interval)):
             yield start_time + (interval * n)
 
 
@@ -122,7 +122,7 @@ class ManualSourceIterators:
 
     def low_cutoff(self):
         # When selecting potential coins, coins below this value are not selected
-        return [1]
+        return [0]
 
     def cutoff_mean(self):
         # When selecting potential coins, potential coins are selected wth this mean.
@@ -141,34 +141,53 @@ class ManualSourceIterators:
 class ManualSuccessIterators:
     def percentage_increase(self):
         # When selling the coin, this is the expected profit percentage to make
-        return [0.05, 0.1]
+        return [0.025,
+                0.05,
+                0.075,
+                0.1
+                ]
         # return np.arange(0.025, 0.1, 0.05)
+
+    def percentage_reduction(self):
+        # When buying an asset, set a buy order with
+        # this much below current price
+        return [
+            0,
+            0.01,
+            0.025,
+            # 0.02,
+            0.05,
+            0.075
+        ]
 
     def stop_price_sell(self):
         # When selling the coin, if a trailing-order is used,
         # this is the stop-limit for selling.
         # That is the price below which coin is sold to reduce losses
-        return [0, 0.01, 0.025]
+        return [0,
+                # 0.01,
+                # 0.025,
+                ]
 
     def limit_sell_adjust_trail(self):
         # In a trailing order, if the order is too close to the limit,
         # kill the sell-order `(1-this)*limit_price` is the trigger
-        return [0.01, 0.02, 0.03, 0.04]
-
-    def percentage_reduction(self):
-        # When buying an asset, set a buy order with
-        # this much below current price
-        return [0, 0.01, 0.02]
+        return [0.01,
+                # 0.02,
+                # 0.25,
+                # 0.03,
+                # 0.04
+                ]
 
     def days_to_run(self):
         # Manually set this from largest to smallest for cache purposes
         return [
-            # timedelta(days=1),
-                timedelta(days=12),
-                timedelta(days=20),
-                timedelta(days=24),
-                # timedelta(days=28),
-                # timedelta(days=32)
+            timedelta(days=1),
+            #     timedelta(days=12),
+            timedelta(days=20),
+            # timedelta(days=24),
+            timedelta(days=28),
+            # timedelta(days=32)
         ]
 
 
@@ -189,12 +208,10 @@ class Targets:
 
             # At the end of 20-days, value of bought coins if they were sold when the target hit
             "end_of_run_value_of_bought_coins_if_sold_on_target",
-            ]
+        ]
 
     def before_buy_targets(self):
         return [
             # Number of oversold coins that were actually bought out of all Binance coins
             "percentage_of_coins_bought",
         ]
-
-

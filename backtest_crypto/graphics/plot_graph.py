@@ -23,6 +23,11 @@ class SurfaceGraph3DCreator(AbstractGraphCreator):
         return SurfaceGraph3DConcrete(*args, **kwargs)
 
 
+class SurfaceGraph3DSubPlotCreator(AbstractGraphCreator):
+    def factory_method(self, *args, **kwargs):
+        return SurfaceGraph3DSubPlotConcrete(*args, **kwargs)
+
+
 class AbstractGraphConcrete(ABC):
     def __init__(self, simulation_dataset):
         self.simulation_dataset = simulation_dataset
@@ -87,7 +92,8 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
         simulation_dataset = self.get_time_sorted_ds(simulation_dataset)
         values_to_plot = simulation_dataset[data_vars[0]].sel(standard_other_dict,
                                                                    tolerance=0.01,
-                                                                   method="nearest")
+                                                                   method="nearest",
+                                                              )
         x_axis, y_axis = self.get_x_y_axis(surface_graph_axes,
                                            values_to_plot)
 
@@ -96,6 +102,8 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
                         surface_graph_axes)
         ax.set_zlabel(data_vars[0])
         # ax.set_zlim([0.85, 1.1])
+        if "time_intervals" not in surface_graph_axes:
+            values_to_plot = values_to_plot.mean(dim="time_intervals")
         z_axis_values = values_to_plot.copy().values
         z_axis_values.resize(len(x_axis), len(y_axis))
         z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
@@ -113,6 +121,43 @@ class SurfaceGraph3DConcrete(AbstractGraphConcrete):
             axis.set_xlabel(surface_graph_axes[0])
             axis.set_ylabel(surface_graph_axes[1])
 
+
+class SurfaceGraph3DSubPlotConcrete(SurfaceGraph3DConcrete):
+    def generate_graph(self,
+                       data_vars,
+                       surface_graph_axes,
+                       standard_other_dict,
+                       changing_variable = "percentage_reduction"):
+        assert len(data_vars) == 1, f"Should have only 1 data_vars to plot"
+        assert len(surface_graph_axes) == 2, f"Should have only 2 axes"
+        simulation_dataset = self.simulation_dataset.sel(
+            {"strategy": standard_other_dict.pop("strategy")}
+        )
+        simulation_dataset = self.get_time_sorted_ds(simulation_dataset)
+        original_standard_dict = standard_other_dict.copy()
+
+        plots = len(standard_other_dict[changing_variable])
+        fig = plt.figure(figsize=plt.figaspect(1/plots))
+        for i, reduction in enumerate(original_standard_dict[changing_variable]):
+
+            new_dict = standard_other_dict
+            new_dict[changing_variable] = reduction
+            values_to_plot = simulation_dataset[data_vars[0]].sel(new_dict,
+                                                                  tolerance=0.01,
+                                                                  method="nearest",
+                                                                  )
+            x_axis, y_axis = self.get_x_y_axis(surface_graph_axes,
+                                               values_to_plot)
+            ax = fig.add_subplot(1, plots, i+1, projection='3d')
+            self.set_labels(ax,
+                            surface_graph_axes)
+            ax.set_zlabel(data_vars[0])
+            # ax.set_zlim([0.85, 1.1])
+            z_axis_values = values_to_plot.copy().values
+            z_axis_values.resize(len(x_axis), len(y_axis))
+            z_axis_values = np.where(z_axis_values == None, 0, z_axis_values).astype(float)
+            ax.plot_surface(x_axis, y_axis.T, z_axis_values, cmap=cm.coolwarm, edgecolor='none', alpha=0.5)
+        plt.show()
 
 def show_graph(creator: AbstractGraphCreator,
                *args,

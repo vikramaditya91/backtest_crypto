@@ -291,7 +291,7 @@ class PotentialIdentification:
                  ohlcv_field,
                  reference_coin,
                  coins_with_valid_history):
-        self.history_access = history_access
+        self.history_store = history_access
         self.potential_coin_client = potential_coin_client
         self.candle = candle
         self.ohlcv_field = ohlcv_field
@@ -324,7 +324,8 @@ class PotentialIdentification:
             filtered_coins = self.filter_coins_with_history(
                 coins=list(potential_coins),
                 history_start=simulation_at,
-                history_end=simulation_at + simulation_input_dict["days_to_run"],
+                history_end=simulation_at + 2 * simulation_input_dict["days_to_run"],
+                # Adding twice the simulation_input_dict because once for buying side and once for selling side
             )
             return filtered_coins
 
@@ -353,11 +354,11 @@ class PotentialIdentification:
     def add_valid_coins_with_history(self,
                                      start_time: datetime.datetime,
                                      end_time: datetime.datetime) -> None:
-        simple_history = get_simple_history(self.history_access,
+        simple_history = get_simple_history(self.history_store,
                                             start_time,
                                             end_time,
                                             self.candle)
         particular_history = simple_history.sel({"ohlcv_fields": self.ohlcv_field})
-        nan_values = particular_history.isnull().sum(axis=1)
+        nan_values = particular_history.isnull().sum(dim="timestamp")
         sufficient_history_coins = nan_values.where(lambda x: x == 0, drop=True).base_assets.values.tolist()
         self.coins_with_valid_history[start_time, end_time] = sufficient_history_coins

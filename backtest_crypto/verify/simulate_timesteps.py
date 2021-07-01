@@ -122,7 +122,9 @@ class AbstractTimestepSimulatorConcrete(ABC):
                                              instant_price_dict,
                                              holdings
                                              ):
-        potential_coins_set = set(potential_coins)
+        potential_coins_set = set(potential_coins).difference({"CLOAK", "ICN", "ICX", "SALT", "TUSD",
+                                                               "BCN", "CHAT", "NPXS", "WINGS", "MOD", "SUB",
+                                                               "BCC"})
         potential_valid_altcoin = list(potential_coins_set.intersection(instant_price_dict.keys()))
         potential_valid_altcoin_not_held = list(set(potential_valid_altcoin) -
                                                 set(map(lambda x: x.coin_name, holdings)) -
@@ -201,7 +203,8 @@ class AbstractTimestepSimulatorConcrete(ABC):
         return self._set_limit_buy_order(random_coin,
                                          buy_price,
                                          ref_qty_available,
-                                         current_time)
+                                         current_time,
+                                         simulation_input_dict)
 
     @staticmethod
     def _get_limit_buy_price_coin(
@@ -232,7 +235,8 @@ class AbstractTimestepSimulatorConcrete(ABC):
                              random_coin,
                              buy_price,
                              ref_qty_available,
-                             current_time
+                             current_time,
+                             simulation_input_dict
                              ):
         qty_of_altcoin_to_buy = ref_qty_available / buy_price
 
@@ -242,7 +246,7 @@ class AbstractTimestepSimulatorConcrete(ABC):
                      base_asset=random_coin,
                      reference_coin=self.reference_coin,
                      stop_price=-1,
-                     timeout=current_time,
+                     timeout=simulation_input_dict['days_to_run'] + current_time,
                      limit_price=buy_price,
                      complete=OrderFill.Fresh
                      )
@@ -720,6 +724,8 @@ class LimitBuyLimitSellSimulatorConcrete(AbstractTimestepSimulatorConcrete):
                                       simulation_at,
                                       order_scheme=OrderScheme.Limit
                                       )
+        self.remove_dead_orders(holdings,
+                                current_time=simulation_at)
         holdings = self.try_execute_open_orders(holdings,
                                                 simulation_at)
         self.place_sell_orders_overall(holdings,
